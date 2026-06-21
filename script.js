@@ -354,7 +354,26 @@
         return;
       }
 
+      if(!dueDate){
+        setHelper('La date limite est obligatoire.');
+        return;
+      }
+
+      // Date limite >= date actuelle (au format YYYY-MM-DD)
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const todayISO = `${yyyy}-${mm}-${dd}`;
+
+      // dueDate et todayISO sont tous deux en YYYY-MM-DD, comparaison lexicographique OK
+      if(dueDate < todayISO){
+        setHelper('La date limite doit être supérieure ou égale à la date actuelle.');
+        return;
+      }
+
       const task = {
+
         id: uid(),
         title: title.trim(),
         priority,
