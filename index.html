@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Task Manager</title>
+  <meta name="description" content="Organise tes tâches avec priorité et date limite." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller au contenu</a>
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand__icon" aria-hidden="true">✓</div>
+      <div>
+        <h1>Smart Task Manager</h1>
+        <p class="subtitle">Organise tes tâches avec priorité et date limite.</p>
+      </div>
+    </div>
+
+    <section class="stats" aria-label="Statistiques">
+      <div class="stat">
+        <div class="stat__label">Total</div>
+        <div class="stat__value" id="statTotal">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">À faire</div>
+        <div class="stat__value" id="statTodo">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Terminées</div>
+        <div class="stat__value" id="statDone">0</div>
+      </div>
+    </section>
+  </header>
+
+  <main id="main" class="app" role="main">
+    <section class="panel" aria-labelledby="createTaskTitle">
+      <h2 id="createTaskTitle">Créer une tâche</h2>
+
+      <form class="task-form" id="taskForm" autocomplete="off">
+        <div class="field">
+          <label for="taskInput">Titre de la tâche</label>
+          <input
+            type="text"
+            id="taskInput"
+            placeholder="Écrire une tâche..."
+            maxlength="120"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="priorityInput">Priorité</label>
+          <select id="priorityInput" aria-label="Priorité">
+            <option value="low">Priorité faible</option>
+            <option value="medium">Priorité moyenne</option>
+            <option value="high">Priorité haute</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="dateInput">Date limite</label>
+          <input type="date" id="dateInput" />
+        </div>
+
+        <div class="actions">
+          <button type="submit" id="addTaskBtn">Ajouter une tâche</button>
+          <button type="button" class="btn-ghost" id="clearCompletedBtn" aria-label="Supprimer les tâches terminées">
+            Effacer terminées
+          </button>
+        </div>
+
+        <p class="helper" id="formHelper" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="filtersTitle">
+      <h2 id="filtersTitle">Filtres</h2>
+
+      <div class="filters" role="group" aria-label="Filtrer les tâches">
+        <button type="button" class="filter-btn is-active" data-filter="all" aria-pressed="true">Toutes</button>
+        <button type="button" class="filter-btn" data-filter="todo" aria-pressed="false">À faire</button>
+        <button type="button" class="filter-btn" data-filter="done" aria-pressed="false">Terminées</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="listTitle">
+      <div class="list-header">
+        <h2 id="listTitle">Vos tâches</h2>
+        <div class="list-meta" aria-live="polite">
+          <span id="taskCount">0 tâche(s)</span>
+        </div>
+      </div>
+
+      <div id="emptyState" class="empty" hidden>
+        <p class="empty__title">Aucune tâche pour le moment.</p>
+        <p class="empty__text">Ajoute une tâche ci-dessus pour commencer.</p>
+      </div>
+
+      <ul id="taskList" class="task-list" aria-live="polite"></ul>
+
+      <div id="srStatus" class="sr-only" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
+
