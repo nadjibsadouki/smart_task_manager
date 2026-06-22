@@ -1,468 +1,416 @@
-(()=>{
+/*
+  Smart Task Manager — script.js (index.html)
+  ----------------------------------------------------------
+  Objectifs :
+  - Animation douce des sections au chargement et au scroll.
+  - Mise en évidence du lien de navigation correspondant à la page courante.
+  - Animations légères : cartes au survol + compteur de stats.
+  - Menu mobile : activé uniquement si un bouton de menu existe.
+  - Bouton « retour en haut » : activé uniquement s’il existe.
+
+  Contraintes respectées :
+  - JavaScript vanilla uniquement.
+  - Script non intrusif : ne casse pas les futures pages.
+  - Toujours vérifier l’existence des éléments avant d’agir.
+*/
+
+(() => {
   'use strict';
 
-  const STORAGE_KEY = 'stm.tasks.v1';
+  /**
+   * Le fichier script.js est chargé sur index.html via <script defer>.
+   * Par sécurité (futures pages), le script n’active ses comportements
+   * que s’il détecte clairement l’UI de la home.
+   */
+  const isHomePage =
+    document.querySelector('.home-main') &&
+    document.querySelector('.home-header') &&
+    document.querySelector('.home-nav__list');
 
-  /** @typedef {'low'|'medium'|'high'} Priority */
-  /** @typedef {'todo'|'done'} Status */
+  if (!isHomePage) return;
 
   /**
-   * @typedef {Object} Task
-   * @property {string} id
-   * @property {string} title
-   * @property {Priority} priority
-   * @property {string} [dueDate]
-   * @property {Status} status
-   * @property {number} createdAt
+   * Respect de l’accessibilité : si l’utilisateur demande moins d’animations,
+   * on évite autant que possible les mouvements.
    */
+  const reduceMotion =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /** @type {Task[]} */
-  let tasks = [];
-
-  /** @type {('all'|'todo'|'done')} */
-  let activeFilter = 'all';
-
-  const $ = (sel) => document.querySelector(sel);
-
-  const el = {
-    taskForm: $('#taskForm'),
-    taskInput: $('#taskInput'),
-    priorityInput: $('#priorityInput'),
-    dateInput: $('#dateInput'),
-
-    addTaskBtn: $('#addTaskBtn'),
-    clearCompletedBtn: $('#clearCompletedBtn'),
-    formHelper: $('#formHelper'),
-
-    filterButtons: Array.from(document.querySelectorAll('.filter-btn')),
-
-    taskList: $('#taskList'),
-    emptyState: $('#emptyState'),
-    taskCount: $('#taskCount'),
-    srStatus: $('#srStatus'),
-
-    statTotal: $('#statTotal'),
-    statTodo: $('#statTodo'),
-    statDone: $('#statDone'),
+  /**
+   * Récupère le nom de la page courante (ex: "index.html", "tasks.html").
+   */
+  const getCurrentPage = () => {
+    const path = window.location.pathname || '';
+    return path.split('/').filter(Boolean).pop() || '';
   };
 
-  const uid = () =>
-    (typeof crypto !== 'undefined' && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : `t_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-  function parseISODateToLocalInput(dateStr){
-    // dateStr comes from <input type="date"> or our storage.
-    // If stored as YYYY-MM-DD, just return it.
-    if(!dateStr) return '';
-    const m = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
-    return m ? dateStr : '';
-  }
-
-  function priorityToBadgeClass(priority){
-    if(priority === 'low') return 'badge--low';
-    if(priority === 'medium') return 'badge--medium';
-    return 'badge--high';
-  }
-
-  function statusLabel(status){
-    return status === 'done' ? 'Terminée' : 'À faire';
-  }
-
-  function dueDateToText(dueDate){
-    if(!dueDate) return '';
-    // Keep it simple: show YYYY-MM-DD as provided.
-    return dueDate;
-  }
-
-  function dueDateIsSoon(dueDate){
-    if(!dueDate) return false;
-    // If within 48 hours
-    const due = new Date(dueDate + 'T00:00:00');
-    if(Number.isNaN(due.getTime())) return false;
-    const now = new Date();
-    const diffMs = due.getTime() - now.getTime();
-    return diffMs >= 0 && diffMs <= 48*60*60*1000;
-  }
-
-  function sortTasksForDisplay(list){
-    // High priority first, then due date soonest, then newest
-    const pr = { low: 1, medium: 2, high: 3 };
-    return [...list].sort((a,b)=>{
-      const p = pr[b.priority] - pr[a.priority];
-      if(p !== 0) return p;
-
-      const ad = a.dueDate ? new Date(a.dueDate+'T00:00:00').getTime() : Infinity;
-      const bd = b.dueDate ? new Date(b.dueDate+'T00:00:00').getTime() : Infinity;
-      if(ad !== bd) return ad - bd;
-
-      return (b.createdAt - a.createdAt);
-    });
-  }
-
-  function load(){
-    try{
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(!raw){
-        tasks = [];
-      } else {
-        const parsed = JSON.parse(raw);
-        if(Array.isArray(parsed)){
-          tasks = parsed.filter(Boolean).map((t)=>{
-            /** @type {Task} */
-            const task = {
-              id: String(t.id ?? uid()),
-              title: String(t.title ?? ''),
-              priority: (t.priority === 'low' || t.priority === 'medium' || t.priority === 'high') ? t.priority : 'medium',
-              dueDate: typeof t.dueDate === 'string' ? parseISODateToLocalInput(t.dueDate) : '',
-              status: (t.status === 'done' ? 'done' : 'todo'),
-              createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
-            };
-            return task;
-          });
-        } else {
-          tasks = [];
-        }
-      }
-    }catch{
-      tasks = [];
+  /**
+   * Normalise une URL relative vers un nom de fichier.
+   */
+  const normalizeHrefToFile = (href) => {
+    if (!href) return '';
+    try {
+      const url = new URL(href, window.location.origin);
+      return url.pathname.split('/').filter(Boolean).pop() || '';
+    } catch {
+      return href;
     }
-  }
+  };
 
-  function save(){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  }
+  /**
+   * 1) Animation douce des sections au chargement / au scroll.
+   * ---------------------------------------------------------
+   * On cible uniquement les éléments présents sur index.html.
+   * La mise à l’écran est pilotée par IntersectionObserver avec fallback.
+   */
+  const initScrollReveal = () => {
+    const targets = [
+      ...document.querySelectorAll(
+        '.home-hero, .home-section, .home-footer, .home-roadmap__item'
+      ),
+      ...document.querySelectorAll('.home-card, .home-dashboard'),
+      ...document.querySelectorAll('.home-mini-stat')
+    ];
 
-  function setHelper(text){
-    el.formHelper.textContent = text;
-  }
-
-  function setSrStatus(text){
-    if(!el.srStatus) return;
-    el.srStatus.textContent = '';
-    // Force reflow for SR updates
-    requestAnimationFrame(()=>{ el.srStatus.textContent = text; });
-  }
-
-  function animateEnter(item){
-    // Add a quick "pop" animation using inline animation via class-like effect.
-    item.animate([
-      { opacity: 0, transform: 'translateY(10px) scale(0.98)', filter: 'blur(4px)' },
-      { opacity: 1, transform: 'translateY(0) scale(1)', filter: 'blur(0px)' },
-    ], { duration: 280, easing: 'cubic-bezier(.2,.9,.2,1)' });
-  }
-
-  function animateExit(item){
-    return item.animate([
-      { opacity: 1, transform: 'translateX(0) scale(1)' },
-      { opacity: 0, transform: 'translateX(-10px) scale(0.98)' },
-    ], { duration: 180, easing: 'ease-out', fill: 'forwards' }).finished;
-  }
-
-  function renderStats(){
-    const total = tasks.length;
-    const todo = tasks.filter(t=>t.status==='todo').length;
-    const done = total - todo;
-
-    if(el.statTotal) el.statTotal.textContent = String(total);
-    if(el.statTodo) el.statTodo.textContent = String(todo);
-    if(el.statDone) el.statDone.textContent = String(done);
-  }
-
-  function getVisibleTasks(){
-    const filtered = tasks.filter(t=>{
-      if(activeFilter === 'all') return true;
-      return t.status === activeFilter;
-    });
-    return sortTasksForDisplay(filtered);
-  }
-
-  function taskItemTemplate(task){
-    const badgeClass = priorityToBadgeClass(task.priority);
-    const dueText = dueDateToText(task.dueDate);
-    const soon = dueDateIsSoon(task.dueDate);
-
-    const dueBadge = task.dueDate ? `
-      <span class="badge ${soon ? 'badge--high' : ''}" style="${soon ? 'border-color: rgba(255,204,102,0.55); background: rgba(255,204,102,0.14);' : ''}">
-        ⏰ ${dueText}${soon ? ' • Bientôt' : ''}
-      </span>
-    ` : '';
-
-    const priorityBadgeText = task.priority === 'high' ? 'Haute' : task.priority === 'medium' ? 'Moyenne' : 'Faible';
-
-    const priorityBadge = `
-      <span class="badge ${badgeClass}">
-        ⚑ ${priorityBadgeText}
-      </span>
-    `;
-
-    const statusBadge = `
-      <span class="badge" style="border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);">
-        ✓ ${statusLabel(task.status)}
-      </span>
-    `;
-
-    const checkBtnLabel = task.status === 'done' ? 'Re-ouvrir' : 'Terminer';
-
-    const checked = task.status === 'done';
-
-    return `
-      <li class="task" data-id="${task.id}" aria-label="Tâche: ${escapeHtml(task.title)}">
-        <div class="task__top">
-          <div>
-            <div class="task__title" style="${checked ? 'text-decoration: line-through; opacity: 0.72;' : ''}">
-              ${escapeHtml(task.title)}
-            </div>
-            <div class="task__meta">
-              ${priorityBadge}
-              ${statusBadge}
-              ${dueBadge}
-            </div>
-          </div>
-        </div>
-
-        <div class="task__actions">
-          <button class="icon-btn" type="button" data-action="toggle" aria-pressed="${checked}">
-            ${checked ? '↩︎ Re-ouvrir' : '✔ Terminer'}
-          </button>
-          <button class="icon-btn icon-btn--danger" type="button" data-action="delete">
-            🗑 Supprimer
-          </button>
-        </div>
-      </li>
-    `;
-  }
-
-  function escapeHtml(str){
-    return String(str).replace(/[&<>"']/g, (c)=>{
-      switch(c){
-        case '&': return '&amp;';
-        case '<': return '<';
-        case '>': return '>';
-        case '"': return '"';
-        case "'": return '&#039;';
-        default: return c;
-      }
-    });
-  }
-
-  function render(){
-    renderStats();
-
-    const visible = getVisibleTasks();
-    if(el.taskCount){
-      const count = visible.length;
-      el.taskCount.textContent = `${count} tâche(s)`;
-    }
-
-    el.taskList.innerHTML = '';
-
-    if(visible.length === 0){
-      el.emptyState.hidden = false;
+    const uniqueTargets = Array.from(new Set(targets));
+    if (!uniqueTargets.length || reduceMotion) {
+      // Fallback : affichage immédiat sans animation.
+      uniqueTargets.forEach((el) => {
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+      });
       return;
     }
-    el.emptyState.hidden = true;
 
-    const frag = document.createDocumentFragment();
-    for(const task of visible){
-      const li = document.createElement('div');
-      li.innerHTML = taskItemTemplate(task).trim();
-      const node = li.firstElementChild;
-      if(!node) continue;
-      frag.appendChild(node);
-    }
-    el.taskList.appendChild(frag);
-
-    // Animations
-    const items = Array.from(el.taskList.querySelectorAll('.task'));
-    items.forEach((item, idx)=>{
-      setTimeout(()=>animateEnter(item), idx*30);
-    });
-  }
-
-  function setActiveFilter(filter){
-    activeFilter = filter;
-    for(const btn of el.filterButtons){
-      const isActive = btn.dataset.filter === filter;
-      btn.classList.toggle('is-active', isActive);
-      btn.setAttribute('aria-pressed', String(isActive));
-    }
-    render();
-  }
-
-  async function handleToggle(taskId){
-    const idx = tasks.findIndex(t=>t.id === taskId);
-    if(idx === -1) return;
-    tasks[idx].status = tasks[idx].status === 'done' ? 'todo' : 'done';
-    save();
-    render();
-    setSrStatus(`Tâche mise à jour: ${tasks[idx].title}`);
-  }
-
-  async function handleDelete(taskId){
-    const li = el.taskList.querySelector(`.task[data-id="${CSS.escape(taskId)}"]`);
-    const task = tasks.find(t=>t.id === taskId);
-
-    if(li){
-      const finished = animateExit(li);
-      tasks = tasks.filter(t=>t.id !== taskId);
-      save();
-      await finished.catch(()=>{});
-      render();
-    } else {
-      tasks = tasks.filter(t=>t.id !== taskId);
-      save();
-      render();
-    }
-
-    if(task) setSrStatus(`Tâche supprimée: ${task.title}`);
-  }
-
-  function validateTitle(title){
-    const t = title.trim();
-    if(t.length === 0) return { ok: false, msg: 'Le titre ne peut pas être vide.' };
-    if(t.length > 120) return { ok: false, msg: 'Titre trop long (max 120 caractères).' };
-    return { ok: true, msg: '' };
-  }
-
-  function clearFormHelper(){
-    setHelper('');
-  }
-
-  function getFormValues(){
-    const title = el.taskInput.value;
-    const priority = /** @type {Priority} */ (el.priorityInput.value);
-    const dueDate = el.dateInput.value ? parseISODateToLocalInput(el.dateInput.value) : '';
-    return { title, priority, dueDate };
-  }
-
-  function resetForm(){
-    el.taskInput.value = '';
-    el.priorityInput.value = 'low';
-    el.dateInput.value = '';
-  }
-
-  function wireEvents(){
-    el.taskForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      clearFormHelper();
-
-      const { title, priority, dueDate } = getFormValues();
-      const v = validateTitle(title);
-      if(!v.ok){
-        setHelper(v.msg);
-        return;
-      }
-
-      if(!dueDate){
-        setHelper('La date limite est obligatoire.');
-        return;
-      }
-
-      // Date limite >= date actuelle (au format YYYY-MM-DD)
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      const todayISO = `${yyyy}-${mm}-${dd}`;
-
-      // dueDate et todayISO sont tous deux en YYYY-MM-DD, comparaison lexicographique OK
-      if(dueDate < todayISO){
-        setHelper('La date limite doit être supérieure ou égale à la date actuelle.');
-        return;
-      }
-
-      const task = {
-
-        id: uid(),
-        title: title.trim(),
-        priority,
-        dueDate: dueDate || '',
-        status: 'todo',
-        createdAt: Date.now(),
-      };
-
-      tasks.push(task);
-      save();
-      resetForm();
-
-      // Small "shine" effect on submit
-      el.addTaskBtn.animate([
-        { transform: 'translateY(0)', filter: 'brightness(1)' },
-        { transform: 'translateY(-1px)', filter: 'brightness(1.2)' },
-        { transform: 'translateY(0)', filter: 'brightness(1)' },
-      ], { duration: 260, easing: 'ease-out' });
-
-      render();
-      setSrStatus(`Tâche ajoutée: ${task.title}`);
+    uniqueTargets.forEach((el) => {
+      // Etat initial.
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(18px)';
+      el.style.willChange = 'transform, opacity';
+      el.style.transition =
+        'opacity 650ms ease, transform 720ms cubic-bezier(0.2, 0.8, 0.2, 1)';
     });
 
-    el.clearCompletedBtn.addEventListener('click', async ()=>{
-      const doneIds = tasks.filter(t=>t.status==='done').map(t=>t.id);
-      if(doneIds.length === 0) return;
-
-      // Animate removal quickly
-      const nodes = doneIds
-        .map(id => el.taskList.querySelector(`.task[data-id="${CSS.escape(id)}"]`))
-        .filter(Boolean);
-
-      await Promise.all(nodes.map(n=>animateExit(n)) ).catch(()=>{});
-
-      tasks = tasks.filter(t=>t.status!=='done');
-      save();
-      render();
-      setSrStatus('Tâches terminées effacées');
-    });
-
-    el.filterButtons.forEach((btn)=>{
-      btn.addEventListener('click', ()=>{
-        const filter = /** @type {'all'|'todo'|'done'} */ (btn.dataset.filter);
-        if(filter) setActiveFilter(filter);
+    if (!('IntersectionObserver' in window)) {
+      uniqueTargets.forEach((el) => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
       });
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const el = entry.target;
+          el.style.opacity = '1';
+          el.style.transform = 'translateY(0)';
+          observer.unobserve(el);
+        });
+      },
+      {
+        root: null,
+        threshold: 0.14,
+        rootMargin: '0px 0px -12% 0px'
+      }
+    );
+
+    uniqueTargets.forEach((el) => observer.observe(el));
+  };
+
+  /**
+   * 2) Lien de navigation actif.
+   * ----------------------------
+   * index.html a un aria-current="page" déjà présent sur Home.
+   * Ici on le met à jour correctement pour les autres pages.
+   */
+  const initActiveNavLink = () => {
+    const navList = document.querySelector('.home-nav__list');
+    if (!navList) return;
+
+    const currentFile = getCurrentPage() || 'index.html';
+
+    const links = Array.from(navList.querySelectorAll('a[href]'));
+    if (!links.length) return;
+
+    // Effacer aria-current.
+    links.forEach((a) => {
+      if (a.hasAttribute('aria-current')) a.removeAttribute('aria-current');
     });
 
-    el.taskList.addEventListener('click', async (e)=>{
-      const btn = e.target instanceof Element ? e.target.closest('button[data-action]') : null;
-      if(!btn) return;
-      const taskEl = e.target instanceof Element ? e.target.closest('.task[data-id]') : null;
-      if(!taskEl) return;
-
-      const action = btn.getAttribute('data-action');
-      const id = taskEl.getAttribute('data-id');
-      if(!id || !action) return;
-
-      if(action === 'toggle'){
-        await handleToggle(id);
-      } else if(action === 'delete'){
-        await handleDelete(id);
+    // Appliquer aria-current sur le lien correspondant.
+    let matched = false;
+    links.forEach((a) => {
+      const hrefFile = normalizeHrefToFile(a.getAttribute('href'));
+      if (hrefFile && hrefFile === currentFile) {
+        a.setAttribute('aria-current', 'page');
+        matched = true;
       }
     });
 
-    // Keyboard: quickly focus title on load
-    window.addEventListener('load', ()=>{
-      setTimeout(()=>{ el.taskInput?.focus?.(); }, 150);
-    });
+    // Sécurité : si aucun match, on force index.
+    if (!matched && currentFile === 'index.html') {
+      links.forEach((a) => {
+        const hrefFile = normalizeHrefToFile(a.getAttribute('href'));
+        if (!hrefFile || hrefFile === 'index.html') {
+          a.setAttribute('aria-current', 'page');
+        }
+      });
+    }
+  };
 
-    // Improve accessibility for date input: keep within allowed format
-    el.dateInput.addEventListener('change', ()=>{
-      el.dateInput.value = parseISODateToLocalInput(el.dateInput.value);
-    });
-  }
+  /**
+   * 4) Animation légère des cartes au survol.
+   * ----------------------------------------
+   * Même si style.css gère déjà un hover, on ajoute une micro-interaction
+   * (inclinaison) uniquement pour améliorer l’expérience.
+   */
+  const initCardHover = () => {
+    const cards = Array.from(document.querySelectorAll('.home-card'));
+    if (!cards.length || reduceMotion) return;
 
-  // Init
-  function init(){
-    load();
-    // Normalize form select default if needed
-    if(el.priorityInput && el.priorityInput.value !== 'low' && el.priorityInput.value !== 'medium' && el.priorityInput.value !== 'high'){
-      el.priorityInput.value = 'low';
+    const onPointerMove = (e, card) => {
+      const rect = card.getBoundingClientRect();
+      const x = rect.width ? (e.clientX - rect.left) / rect.width : 0.5;
+      const y = rect.height ? (e.clientY - rect.top) / rect.height : 0.5;
+
+      const rotateX = (0.5 - y) * 3.5; // deg
+      const rotateY = (x - 0.5) * 4.5; // deg
+
+      card.style.transform = `translateY(-3px) perspective(700px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    };
+
+    const onPointerEnter = (e) => {
+      const card = e.currentTarget;
+      card.style.transition = card.style.transition || 'transform 160ms ease';
+      card.style.willChange = 'transform';
+      card.style.transform = 'translateY(-3px)';
+    };
+
+    const onPointerLeave = (e) => {
+      const card = e.currentTarget;
+      // On laisse le hover CSS faire le reste.
+      card.style.transform = '';
+    };
+
+    cards.forEach((card) => {
+      card.addEventListener('pointerenter', onPointerEnter);
+      card.addEventListener(
+        'pointermove',
+        (e) => onPointerMove(e, card),
+        { passive: true }
+      );
+      card.addEventListener('pointerleave', onPointerLeave);
+    });
+  };
+
+  /**
+   * 5) Animation des statistiques de la preview.
+   * --------------------------------------------
+   * - cible .home-dashboard__stats
+   * - anime les valeurs numériques dans .home-mini-stat__value
+   */
+  const animateNumber = (from, to, durationMs, onUpdate) => {
+    const start = performance.now();
+    const delta = to - from;
+
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    const step = (now) => {
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed / durationMs);
+      const value = from + delta * easeOutCubic(t);
+      onUpdate(value, t);
+      if (t < 1) requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
+  };
+
+  const initStatsAnimation = () => {
+    const statsWrap = document.querySelector('.home-dashboard__stats');
+    if (!statsWrap) return;
+
+    if (reduceMotion) {
+      // Accessibilité : on n’anime pas, on garde la valeur telle quelle.
+      return;
     }
 
-    wireEvents();
-    setActiveFilter('all');
-    render();
-  }
+    const valueEls = Array.from(
+      statsWrap.querySelectorAll('.home-mini-stat__value')
+    );
 
-  if(document.readyState === 'loading'){
+    const parsed = valueEls
+      .map((el) => {
+        const raw = (el.textContent || '').trim();
+        const target = Number(raw.replace(',', '.'));
+        return Number.isFinite(target) ? { el, target } : null;
+      })
+      .filter(Boolean);
+
+    if (!parsed.length) return;
+
+    let started = false;
+
+    const startAnimation = () => {
+      if (started) return;
+      started = true;
+
+      parsed.forEach(({ el, target }, index) => {
+        const from = 0;
+        const delay = index * 120;
+
+        // On stocke un état (utile si re-rendu futur).
+        el.dataset.animatedFrom = String(from);
+
+        window.setTimeout(() => {
+          animateNumber(from, target, 900, (value) => {
+            // Les stats sont des entiers dans la maquette.
+            el.textContent = String(Math.round(value));
+          });
+        }, delay);
+      });
+    };
+
+    if (!('IntersectionObserver' in window)) {
+      startAnimation();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            startAnimation();
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.25, rootMargin: '0px 0px -10% 0px' }
+    );
+
+    observer.observe(statsWrap);
+  };
+
+  /**
+   * 6) Menu mobile si un bouton de menu existe.
+   * -------------------------------------------
+   * index.html actuel n’a pas de bouton explicitement identifié.
+   * On implémente un comportement générique et non intrusif.
+   *
+   * Candidats détectés (flexibles pour futures pages) :
+   * - bouton[data-menu-toggle]
+   * - #menu-toggle, .menu-toggle
+   * - et un menu ciblé via [data-menu], #menu, .menu
+   */
+  const initMobileMenu = () => {
+    // Détecter un bouton.
+    const toggleBtn =
+      document.querySelector('[data-menu-toggle]') ||
+      document.querySelector('#menu-toggle') ||
+      document.querySelector('.menu-toggle');
+
+    if (!toggleBtn) return;
+
+    // Détecter la cible menu.
+    const menu =
+      document.querySelector('[data-menu]') ||
+      document.querySelector('#menu') ||
+      document.querySelector('.menu');
+
+    // Si pas de menu trouvé, on ne fait rien.
+    if (!menu) return;
+
+    const openClass = 'is-open';
+
+    const setOpen = (isOpen) => {
+      menu.classList.toggle(openClass, isOpen);
+      toggleBtn.setAttribute('aria-expanded', String(isOpen));
+    };
+
+    // Etat initial.
+    if (!toggleBtn.hasAttribute('aria-expanded')) {
+      toggleBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = menu.classList.contains(openClass);
+      setOpen(!isOpen);
+    });
+
+    // Fermer au clic en dehors.
+    document.addEventListener('click', (e) => {
+      const isClickInside = menu.contains(e.target) || toggleBtn.contains(e.target);
+      if (isClickInside) return;
+      if (!menu.classList.contains(openClass)) return;
+      setOpen(false);
+    });
+
+    // Fermer au ESC.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!menu.classList.contains(openClass)) return;
+      setOpen(false);
+    });
+  };
+
+  /**
+   * 7) Bouton « retour en haut » si nécessaire.
+   * -------------------------------------------
+   * index.html ne contient pas cet élément dans la maquette.
+   * On le gère de façon générique.
+   */
+  const initBackToTop = () => {
+    const backBtn =
+      document.querySelector('[data-back-to-top]') ||
+      document.querySelector('#back-to-top') ||
+      document.querySelector('.back-to-top');
+
+    if (!backBtn) return;
+
+    const showAt = 450;
+
+    const setVisible = (visible) => {
+      backBtn.classList.toggle('is-visible', visible);
+      backBtn.setAttribute('aria-hidden', String(!visible));
+    };
+
+    setVisible(false);
+
+    const onScroll = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      setVisible(y > showAt);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (reduceMotion) {
+        window.scrollTo(0, 0);
+        return;
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  };
+
+  /**
+   * Initialisation : tout au démarrage DOM.
+   */
+  const init = () => {
+    initActiveNavLink();
+    initScrollReveal();
+    initCardHover();
+    initStatsAnimation();
+    initMobileMenu();
+    initBackToTop();
+  };
+
+  // Sécurité : exécution DOM-ready.
+  if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, { once: true });
   } else {
     init();

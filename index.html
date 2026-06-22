@@ -1,111 +1,221 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Smart Task Manager</title>
-  <meta name="description" content="Organise tes tâches avec priorité et date limite." />
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <a class="skip-link" href="#main">Aller au contenu</a>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smart Gestionnaire de tâches</title>
 
-  <header class="app-header">
-    <div class="brand">
-      <div class="brand__icon" aria-hidden="true">✓</div>
-      <div>
-        <h1>Smart Task Manager</h1>
-        <p class="subtitle">Organise tes tâches avec priorité et date limite.</p>
-      </div>
-    </div>
+    <meta
+      name="description"
+      content="Smart Gestionnaire de tâches : planifiez, priorisez et suivez vos tâches avec une organisation claire — et une IA à venir."
+    />
 
-    <section class="stats" aria-label="Statistiques">
-      <div class="stat">
-        <div class="stat__label">Total</div>
-        <div class="stat__value" id="statTotal">0</div>
-      </div>
-      <div class="stat">
-        <div class="stat__label">À faire</div>
-        <div class="stat__value" id="statTodo">0</div>
-      </div>
-      <div class="stat">
-        <div class="stat__label">Terminées</div>
-        <div class="stat__value" id="statDone">0</div>
-      </div>
-    </section>
-  </header>
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
 
-  <main id="main" class="app" role="main">
-    <section class="panel" aria-labelledby="createTaskTitle">
-      <h2 id="createTaskTitle">Créer une tâche</h2>
+  <body>
+    <a class="skip-link" href="#main" aria-label="Aller au contenu principal">Aller au contenu</a>
 
-      <form class="task-form" id="taskForm" autocomplete="off">
-        <div class="field">
-          <label for="taskInput">Titre de la tâche</label>
-          <input
-            type="text"
-            id="taskInput"
-            placeholder="Écrire une tâche..."
-            maxlength="120"
-            required
-          />
+    <header class="home-header" role="banner">
+      <div class="home-header__inner">
+        <a class="home-brand" href="index.html" aria-label="Smart Gestionnaire de tâches — Accueil">
+          <span class="home-brand__logo" aria-hidden="true">✓</span>
+          <span class="home-brand__text">Smart Gestionnaire de tâches</span>
+
+        </a>
+
+        <nav class="home-nav" aria-label="Navigation principale">
+          <ul class="home-nav__list">
+            <li><a href="index.html" aria-current="page">Accueil</a></li>
+            <li><a href="tasks.html">Tâches</a></li>
+            <li><a href="ai.html">IA</a></li>
+            <li><a href="analytics.html">Analyses</a></li>
+            <li><a href="about.html">À propos</a></li>
+
+          </ul>
+        </nav>
+
+        <a class="home-launch" href="tasks.html" role="button" aria-label="Lancer l’application">Lancer l’application</a>
+
+      </div>
+    </header>
+
+    <main id="main" class="home-main" role="main">
+      <section class="home-hero" aria-labelledby="homeHeroTitle">
+        <div class="home-hero__inner">
+          <div class="home-hero__badge" role="note">Application de productivité</div>
+          <h1 id="homeHeroTitle">Planifier. Prioriser. Réussir.</h1>
+
+          <p class="home-hero__text">
+            Organisez vos tâches avec une approche moderne : priorités claires, deadlines maîtrisées,
+            et un tableau de bord lisible pour progresser sans friction.
+          </p>
+
+          <div class="home-hero__actions" aria-label="Actions principales">
+            <a class="home-cta home-cta--primary" href="tasks.html" aria-label="Démarrer la gestion de tâches">
+              Démarrer la gestion <span aria-hidden="true">→</span>
+            </a>
+            <a class="home-cta home-cta--secondary" href="ai.html" aria-label="Voir les fonctionnalités IA">
+              Voir les fonctionnalités IA
+            </a>
+
+          </div>
         </div>
+      </section>
 
-        <div class="field">
-          <label for="priorityInput">Priorité</label>
-          <select id="priorityInput" aria-label="Priorité">
-            <option value="low">Priorité faible</option>
-            <option value="medium">Priorité moyenne</option>
-            <option value="high">Priorité haute</option>
-          </select>
+      <section class="home-section" aria-labelledby="whatItDoesTitle">
+        <div class="home-section__inner">
+          <h2 id="whatItDoesTitle">Ce que ça fait</h2>
+
+
+          <div class="home-cards" role="list" aria-label="Fonctionnalités">
+            <article class="home-card" role="listitem" aria-label="Création intelligente de tâches">
+              <h3>Création intelligente de tâches</h3>
+
+              <p>Créez rapidement vos tâches avec des champs essentiels et une structure cohérente.</p>
+            </article>
+
+            <article class="home-card" role="listitem" aria-label="Planification par priorités">
+              <h3>Planification par priorités</h3>
+
+              <p>Définissez l’ordre de traitement pour concentrer vos efforts sur l’essentiel.</p>
+            </article>
+
+            <article class="home-card" role="listitem" aria-label="Suivi des échéances">
+              <h3>Suivi des échéances</h3>
+
+              <p>Visualisez les échéances pour ne rien laisser au hasard.</p>
+            </article>
+
+            <article class="home-card" role="listitem" aria-label="Vue d’ensemble de l’avancement">
+              <h3>Vue d’ensemble de l’avancement</h3>
+
+              <p>Suivez l’avancement et améliorez votre organisation au fil du temps.</p>
+            </article>
+          </div>
         </div>
+      </section>
 
-        <div class="field">
-          <label for="dateInput">Date limite</label>
-          <input type="date" id="dateInput" required />
+      <section class="home-section" aria-labelledby="whySmartTitle">
+        <div class="home-section__inner">
+          <h2 id="whySmartTitle">Pourquoi c’est “smart”</h2>
+
+          <p class="home-paragraph">
+            Smart Task Manager deviendra encore plus intelligent grâce à l’IA : suggestions de priorités,
+            résumé structuré de vos tâches, et recommandations pour améliorer votre organisation.
+            L’objectif : réduire le temps de décision et maximiser votre productivité.
+          </p>
         </div>
+      </section>
 
-        <div class="actions">
-          <button type="submit" id="addTaskBtn">Ajouter une tâche</button>
-          <button type="button" class="btn-ghost" id="clearCompletedBtn" aria-label="Supprimer les tâches terminées">
-            Effacer terminées
-          </button>
+      <section class="home-section" aria-labelledby="dashboardPreviewTitle">
+        <div class="home-section__inner">
+          <h2 id="dashboardPreviewTitle">Aperçu du tableau de bord</h2>
+
+
+          <div class="home-dashboard" aria-label="Prévisualisation du tableau de bord">
+            <div class="home-dashboard__stats" aria-label="Statistiques">
+              <div class="home-mini-stat" aria-label="Tâches totales">
+
+                <div class="home-mini-stat__label">Total</div>
+
+                <div class="home-mini-stat__value">12</div>
+              </div>
+              <div class="home-mini-stat" aria-label="Tâches à faire">
+                <div class="home-mini-stat__label">À faire</div>
+                <div class="home-mini-stat__value">7</div>
+              </div>
+              <div class="home-mini-stat" aria-label="Tâches terminées">
+                <div class="home-mini-stat__label">Terminées</div>
+                <div class="home-mini-stat__value">5</div>
+              </div>
+            </div>
+
+            <div class="home-dashboard__grid">
+              <div class="home-dashboard__tasks" aria-label="Tâches fictives">
+                <h3 class="home-dashboard__subtitle">Tâches</h3>
+
+                <ul class="home-dashboard__task-list" aria-label="Liste de tâches">
+                  <li class="home-dashboard__task" aria-label="Tâche : Prioriser le planning">
+                    <span class="home-dashboard__task-title">Prioriser le planning</span>
+                    <span class="home-dashboard__task-meta">Priorité: Haute • Échéance: 2026-06-28</span>
+                  </li>
+                  <li class="home-dashboard__task" aria-label="Tâche : Préparer le sprint">
+                    <span class="home-dashboard__task-title">Préparer le sprint</span>
+                    <span class="home-dashboard__task-meta">Priorité: Moyenne • Échéance: 2026-07-03</span>
+                  </li>
+                  <li class="home-dashboard__task" aria-label="Tâche : Finaliser le reporting">
+                    <span class="home-dashboard__task-title">Finaliser le reporting</span>
+                    <span class="home-dashboard__task-meta">Priorité: Faible • Échéance: 2026-07-06</span>
+                  </li>
+                </ul>
+              </div>
+
+              <aside class="home-dashboard__ai" aria-label="Suggestion IA">
+                <h3 class="home-dashboard__subtitle">Suggestion IA</h3>
+
+                <p class="home-dashboard__ai-text">
+                  « Envisage de traiter d’abord les tâches à échéance proche et de regrouper les actions
+                  similaires pour réduire le contexte switching. »
+                </p>
+                <div class="home-dashboard__ai-chip" role="note">Résumé IA (exemple)</div>
+              </aside>
+            </div>
+          </div>
         </div>
+      </section>
 
-        <p class="helper" id="formHelper" aria-live="polite"></p>
-      </form>
-    </section>
+      <section class="home-section" aria-labelledby="roadmapTitle">
+        <div class="home-section__inner">
+          <h2 id="roadmapTitle">Feuille de route</h2>
 
-    <section class="panel" aria-labelledby="filtersTitle">
-      <h2 id="filtersTitle">Filtres</h2>
 
-      <div class="filters" role="group" aria-label="Filtrer les tâches">
-        <button type="button" class="filter-btn is-active" data-filter="all" aria-pressed="true">Toutes</button>
-        <button type="button" class="filter-btn" data-filter="todo" aria-pressed="false">À faire</button>
-        <button type="button" class="filter-btn" data-filter="done" aria-pressed="false">Terminées</button>
+          <div class="home-roadmap" aria-label="Plan de développement">
+            <article class="home-roadmap__item" aria-label="Front-end">
+              <h3>Front-end</h3>
+
+              <p>Une expérience premium, rapide et accessible.</p>
+            </article>
+            <article class="home-roadmap__item" aria-label="Base de données">
+              <h3>Base de données</h3>
+
+              <p>Persistance des données et synchronisation.</p>
+            </article>
+            <article class="home-roadmap__item" aria-label="Assistant IA">
+              <h3>Assistant IA</h3>
+
+              <p>Suggestions de priorités, résumés et recommandations.</p>
+            </article>
+            <article class="home-roadmap__item" aria-label="Analytique">
+              <h3>Analytique</h3>
+
+              <p>Indicateurs pour mesurer la progression et ajuster la stratégie.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="home-section home-final-cta" aria-labelledby="homeCtaTitle">
+        <div class="home-section__inner">
+          <h2 id="homeCtaTitle">Prêt à reprendre le contrôle ?</h2>
+          <p class="home-paragraph">
+            Lance l’application et commence à planifier avec une méthode claire.
+          </p>
+          <a class="home-cta__button" href="tasks.html" aria-label="Aller à tasks.html">Aller aux tâches</a>
+
+        </div>
+      </section>
+    </main>
+
+    <footer class="home-footer" role="contentinfo" aria-label="Pied de page">
+      <div class="home-footer__inner">
+        <div class="home-footer__copyright">
+          © 2026 Smart Task Manager. Tous droits réservés.
+        </div>
       </div>
-    </section>
+    </footer>
 
-    <section class="panel" aria-labelledby="listTitle">
-      <div class="list-header">
-        <h2 id="listTitle">Vos tâches</h2>
-        <div class="list-meta" aria-live="polite">
-          <span id="taskCount">0 tâche(s)</span>
-        </div>
-      </div>
-
-      <div id="emptyState" class="empty" hidden>
-        <p class="empty__title">Aucune tâche pour le moment.</p>
-        <p class="empty__text">Ajoute une tâche ci-dessus pour commencer.</p>
-      </div>
-
-      <ul id="taskList" class="task-list" aria-live="polite"></ul>
-
-      <div id="srStatus" class="sr-only" aria-live="polite"></div>
-    </section>
-  </main>
-
-  <script src="script.js" defer></script>
-</body>
+  </body>
 </html>
 
