@@ -1,7 +1,14 @@
-# TODO - Correction affichage index.html (style.css uniquement)
+# TODO — Smart Task Manager
 
-- [x] Lire index.html et style.css existant pour comprendre la structure.
-- [x] Proposer correction CSS ciblée (html/body marge/largeur/hauteur, overflow-x, conteneurs à 100%).
-- [ ] Remplacer style.css par la version corrigée (si validation côté navigateur).
-- [ ] Vérifier visuellement : pas d’espace blanc à droite/bas, footer visible correctement, pas d’overflow horizontal.
+## Tâche: JavaScript complet pour `tache.html`
+
+- [ ] Ajouter un init “page tâches” dans `script.js` (ne pas casser index/IA)
+- [ ] Implémenter persistance via `localStorage`
+- [ ] Implémenter validation stricte (titre, priorité, date obligatoire, date >= aujourd’hui)
+- [ ] Générer l’UI dynamique de la liste (`#taskList`) + rendu badges + actions (done/todo + supprimer)
+- [ ] Mettre à jour stats et compteurs (`#statTotal`, `#statTodo`, `#statDone`, `#taskCount`, `#emptyState`)
+- [ ] Implémenter filtres (data-filter all/todo/done) + états aria-pressed
+- [ ] Implémenter bouton `#clearCompletedBtn`
+- [ ] Accessibilité: messages d’erreur + focus sur champs en erreur + aria-live
+- [ ] Tester manuellement sur `tache.html` (edge cases)
 

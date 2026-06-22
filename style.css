@@ -105,14 +105,21 @@ h1,h2,h3,p{ margin:0; }
 
 /* Header */
 .home-header{
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 50;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   background: linear-gradient(180deg, rgba(7,10,20,0.82), rgba(7,10,20,0.55));
   border-bottom: 1px solid rgba(255,255,255,.06);
 }
+
+/* Sticky uniquement sur index.html */
+body#index-page .home-header{
+  position: sticky;
+  top: 0;
+}
+
+
 
 .home-header__inner{
   display:flex;
@@ -554,7 +561,355 @@ h1#homeHeroTitle{
   font-size: 13px;
 }
 
-/* Mobile */
+/* =========================
+   Layout: tasks page (tache.html)
+   Scoped to avoid conflicts with other pages.
+   ========================= */
+
+/* 1) Variables */
+:root{
+  --tasks-bg0:#070a14;
+  --tasks-bg1:#0a0f24;
+  --tasks-text:#eaf0ff;
+  --tasks-blue:#3b82f6;
+  --tasks-violet:#7c3aed;
+  --tasks-violet-light:#a855f7;
+  --tasks-cyan:#22d3ee;
+}
+
+/* 2) Reset / base (scoped) */
+#main.home-main[role="main"]{ color: var(--tasks-text); }
+
+/* 3) Layout tasks */
+body:has(.home-dashboard__grid) {}
+
+/* Main title */
+#tasksDashboardTitle{
+  font-size: clamp(22px, 2.3vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -0.35px;
+  font-weight: 920;
+  margin-top: 6px;
+}
+
+/* Top dashboard: form + filters */
+/* Keep this page's grid rule independent from other pages */
+main[aria-label="Gestion des tâches"] .home-section__inner{
+  display:grid;
+  gap: 18px;
+}
+
+main[aria-label="Gestion des tâches"] .home-dashboard[aria-label="Zone de création et filtres"]{
+  padding: 16px;
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(1000px 520px at 10% 0%, rgba(59,130,246,.18), transparent 55%),
+    radial-gradient(900px 520px at 95% 0%, rgba(124,58,237,.20), transparent 50%),
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: var(--shadow-soft);
+}
+
+main[aria-label="Gestion des tâches"] .home-dashboard[aria-label="Zone de création et filtres"] .home-dashboard__grid{
+  grid-template-columns: 1.3fr 0.9fr;
+  gap: 14px;
+}
+
+/* Cards style for create + filters */
+main[aria-label="Gestion des tâches"] .home-dashboard__tasks,
+main[aria-label="Gestion des tâches"] .home-dashboard__ai{
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(100% 120% at 20% 0%, rgba(34,211,238,.10), transparent 55%),
+    rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 10px 30px rgba(0,0,0,.20);
+}
+
+/* Subtitles */
+main[aria-label="Gestion des tâches"] .home-dashboard__subtitle{
+  font-size: 15.5px;
+  font-weight: 920;
+  margin-bottom: 12px;
+  color: rgba(234,240,255,.98);
+}
+
+/* 4) Header / stats (already styled globally, refine for this page) */
+main[aria-label="Gestion des tâches"] .home-header{
+  background: linear-gradient(180deg, rgba(7,10,20,0.84), rgba(7,10,20,0.58));
+}
+
+/* Résumé des tâches (cartes Total / À faire / Terminées) */
+main[aria-label="Gestion des tâches"] .home-task-summary{
+  padding: 18px 0 10px;
+}
+
+main[aria-label="Gestion des tâches"] .home-task-summary__inner{
+  display:flex;
+  justify-content:center;
+}
+
+main[aria-label="Gestion des tâches"] .home-dashboard__stats{
+  margin-bottom: 0;
+  width: 100%;
+}
+
+
+/* 5) Formulaire */
+.tasks-form{
+  display:grid;
+  gap: 12px;
+}
+
+main[aria-label="Gestion des tâches"] .form-field{
+  display:grid;
+  gap: 8px;
+}
+
+main[aria-label="Gestion des tâches"] .form-field label{
+  font-size: 12.6px;
+  font-weight: 820;
+  color: rgba(234,240,255,.86);
+}
+
+main[aria-label="Gestion des tâches"] input[type="text"],
+main[aria-label="Gestion des tâches"] input[type="date"],
+main[aria-label="Gestion des tâches"] select{
+  width: 100%;
+  height: 42px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(120% 140% at 20% 0%, rgba(34,211,238,.12), transparent 50%),
+    rgba(255,255,255,.03);
+  color: rgba(234,240,255,.98);
+  box-shadow: 0 10px 24px rgba(0,0,0,.15);
+}
+
+main[aria-label="Gestion des tâches"] input[type="text"]::placeholder,
+main[aria-label="Gestion des tâches"] input[type="date"]::placeholder{
+  color: rgba(234,240,255,.45);
+}
+
+main[aria-label="Gestion des tâches"] select{
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(234,240,255,.65) 50%),
+    linear-gradient(135deg, rgba(234,240,255,.65) 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 18px) 18px,
+    calc(100% - 12px) 18px,
+    calc(100% - 2.5em) 0.5em;
+  background-size: 6px 6px, 6px 6px, 1px 1.5em;
+  background-repeat: no-repeat;
+}
+
+main[aria-label="Gestion des tâches"] input[type="text"]:focus,
+main[aria-label="Gestion des tâches"] input[type="date"]:focus,
+main[aria-label="Gestion des tâches"] select:focus{
+  border-color: rgba(34,211,238,.40);
+  box-shadow: var(--focus);
+}
+
+/* Priority theme */
+main[aria-label="Gestion des tâches"] option[value="low"]{ background:#0b1438; color:#bcd6ff; }
+main[aria-label="Gestion des tâches"] option[value="medium"]{ background:#1a0f3c; color:#dcc6ff; }
+main[aria-label="Gestion des tâches"] option[value="high"]{ background:#221013; color:#ffd1d1; }
+
+/* 5b) Actions */
+.form-actions{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+main[aria-label="Gestion des tâches"] button{
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  color: rgba(234,240,255,.95);
+  font-weight: 900;
+  letter-spacing: .1px;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+main[aria-label="Gestion des tâches"] button:hover{
+  transform: translateY(-1px);
+}
+
+#addTaskBtn{
+  background:
+    radial-gradient(120% 140% at 20% 0%, rgba(34,211,238,.30), transparent 55%),
+    linear-gradient(180deg, rgba(59,130,246,.26), rgba(124,58,237,.16));
+  border-color: rgba(34,211,238,.34);
+  box-shadow: var(--shadow-glow);
+}
+
+#addTaskBtn:hover{
+  border-color: rgba(34,211,238,.48);
+}
+
+#clearCompletedBtn{
+  background: rgba(255,255,255,.03);
+  border-color: rgba(168,85,247,.26);
+}
+
+#clearCompletedBtn:hover{
+  border-color: rgba(168,85,247,.40);
+  background: rgba(255,255,255,.05);
+}
+
+main[aria-label="Gestion des tâches"] button:focus-visible{
+  box-shadow: var(--focus);
+}
+
+/* 6) Filtres */
+.filters{ display:flex; flex-wrap: wrap; gap: 10px; }
+
+main[aria-label="Gestion des tâches"] .filter-btn{
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background:
+    radial-gradient(120% 140% at 20% 0%, rgba(124,58,237,.16), transparent 55%),
+    rgba(255,255,255,.03);
+  color: rgba(234,240,255,.90);
+  font-weight: 900;
+  cursor:pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+main[aria-label="Gestion des tâches"] .filter-btn:hover{
+  transform: translateY(-1px);
+  border-color: rgba(34,211,238,.40);
+  background:
+    radial-gradient(120% 140% at 20% 0%, rgba(34,211,238,.18), transparent 55%),
+    rgba(255,255,255,.05);
+}
+
+main[aria-label="Gestion des tâches"] .filter-btn[aria-pressed="true"],
+main[aria-label="Gestion des tâches"] .filter-btn.is-active{
+  border-color: rgba(34,211,238,.55);
+  background:
+    radial-gradient(120% 140% at 20% 0%, rgba(34,211,238,.34), transparent 55%),
+    linear-gradient(180deg, rgba(59,130,246,.22), rgba(124,58,237,.14));
+  box-shadow: 0 0 0 1px rgba(34,211,238,.18);
+}
+
+/* 7) Liste des tâches */
+main[aria-label="Gestion des tâches"] section[aria-labelledby="yourTasksTitle"]{
+  padding-top: 0;
+}
+
+main[aria-label="Gestion des tâches"] .home-dashboard[aria-labelledby="yourTasksTitle"]{
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+main[aria-label="Gestion des tâches"] .home-dashboard[aria-labelledby="yourTasksTitle"] .home-dashboard__tasks{
+  border-radius: var(--radius-xl);
+  padding: 18px;
+}
+
+.tasks-counter{
+  display:flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 10px;
+  font-weight: 800;
+  color: rgba(234,240,255,.78);
+  margin: 2px 0 12px;
+}
+
+.tasks-counter__label{
+  color: rgba(234,240,255,.70);
+  font-weight: 800;
+  font-size: 13.5px;
+}
+
+#taskCount{
+  font-size: 16px;
+  color: rgba(234,240,255,.98);
+}
+
+.empty-state{
+  border-radius: 16px;
+  padding: 14px 14px;
+  border: 1px dashed rgba(255,255,255,.16);
+  color: rgba(234,240,255,.70);
+  background: rgba(255,255,255,.02);
+  box-shadow: inset 0 0 0 1px rgba(34,211,238,.06);
+  margin-bottom: 12px;
+}
+
+.home-dashboard__task{
+  padding: 12px 14px;
+  border-radius: 16px;
+  background:
+    radial-gradient(900px 300px at 0% 0%, rgba(59,130,246,.12), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+/* 8) États / badges - only if script injects them */
+main[aria-label="Gestion des tâches"] .task-badge,
+main[aria-label="Gestion des tâches"] .badge{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 12.5px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.03);
+}
+
+main[aria-label="Gestion des tâches"] .badge--todo{ border-color: rgba(59,130,246,.30); color: rgba(188,214,255,.95); }
+main[aria-label="Gestion des tâches"] .badge--done{ border-color: rgba(34,211,238,.26); color: rgba(200,250,255,.95); }
+main[aria-label="Gestion des tâches"] .badge--high{ border-color: rgba(124,58,237,.34); color: rgba(231,210,255,.98); }
+
+/* 9) Responsive */
+@media (max-width: 980px){
+  main[aria-label="Gestion des tâches"] .home-dashboard[aria-label="Zone de création et filtres"] .home-dashboard__grid{
+    grid-template-columns: 1fr;
+  }
+
+  #tasksDashboardTitle{ font-size: 24px; }
+
+  main[aria-label="Gestion des tâches"] .form-actions{ flex-direction: column; }
+
+  main[aria-label="Gestion des tâches"] .form-actions button{ width: 100%; }
+}
+
+@media (max-width: 640px){
+  main[aria-label="Gestion des tâches"] .home-section{ padding-top: 24px; }
+  main[aria-label="Gestion des tâches"] .home-dashboard[aria-label="Zone de création et filtres"]{ padding: 12px; }
+  main[aria-label="Gestion des tâches"] .home-dashboard__tasks,
+  main[aria-label="Gestion des tâches"] .home-dashboard__ai{
+    padding: 14px;
+  }
+
+  main[aria-label="Gestion des tâches"] input[type="text"],
+  main[aria-label="Gestion des tâches"] input[type="date"],
+  main[aria-label="Gestion des tâches"] select{
+    height: 44px;
+  }
+
+  .tasks-counter{ justify-content: flex-end; }
+  main[aria-label="Gestion des tâches"] .filters{ gap: 8px; }
+}
+
+/* Mobile (global existing) */
 @media (max-width: 980px){
   .home-cards{ grid-template-columns: repeat(2, 1fr); }
   .home-roadmap{ grid-template-columns: repeat(2, 1fr); }
@@ -577,4 +932,5 @@ h1#homeHeroTitle{
   html{ scroll-behavior: auto; }
   *{ transition: none !important; animation: none !important; }
 }
+
 

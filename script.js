@@ -1,33 +1,24 @@
-/*
-  Smart Task Manager — script.js (index.html)
-  ----------------------------------------------------------
-  Objectifs :
-  - Animation douce des sections au chargement et au scroll.
-  - Mise en évidence du lien de navigation correspondant à la page courante.
-  - Animations légères : cartes au survol + compteur de stats.
-  - Menu mobile : activé uniquement si un bouton de menu existe.
-  - Bouton « retour en haut » : activé uniquement s’il existe.
-
-  Contraintes respectées :
-  - JavaScript vanilla uniquement.
-  - Script non intrusif : ne casse pas les futures pages.
-  - Toujours vérifier l’existence des éléments avant d’agir.
-*/
-
 (() => {
   'use strict';
 
   /**
    * Le fichier script.js est chargé sur index.html via <script defer>.
-   * Par sécurité (futures pages), le script n’active ses comportements
-   * que s’il détecte clairement l’UI de la home.
+   * On l’utilise aussi pour `tache.html`.
    */
+
   const isHomePage =
     document.querySelector('.home-main') &&
     document.querySelector('.home-header') &&
     document.querySelector('.home-nav__list');
 
-  if (!isHomePage) return;
+  const isTaskPage =
+    document.querySelector('main[aria-label="Gestion des tâches"]') &&
+    document.querySelector('#taskForm') &&
+    document.querySelector('#taskList');
+
+  // Si aucune des 2 pages n’est détectée, on ne fait rien.
+  if (!isHomePage && !isTaskPage) return;
+
 
   /**
    * Respect de l’accessibilité : si l’utilisateur demande moins d’animations,
@@ -415,5 +406,452 @@
   } else {
     init();
   }
-})();
 
+  // ---------------------------
+  // Page tache.html (Smart tasks)
+  // ---------------------------
+  const initTaskPage = () => {
+    if (!isTaskPage) return;
+
+    const STORAGE_KEY = 'stm_tasks_v1';
+
+    const els = {
+      form: document.querySelector('#taskForm'),
+      title: document.querySelector('#taskInput'),
+      priority: document.querySelector('#priorityInput'),
+      dueDate: document.querySelector('#dateInput'),
+      addBtn: document.querySelector('#addTaskBtn'),
+      clearCompletedBtn: document.querySelector('#clearCompletedBtn'),
+
+      statTotal: document.querySelector('#statTotal'),
+      statTodo: document.querySelector('#statTodo'),
+      statDone: document.querySelector('#statDone'),
+
+      taskCount: document.querySelector('#taskCount'),
+      emptyState: document.querySelector('#emptyState'),
+      taskList: document.querySelector('#taskList'),
+
+      filterBtns: Array.from(
+        document.querySelectorAll('.filter-btn[data-filter]')
+      )
+    };
+
+    if (!els.form || !els.taskList) return;
+
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const getTodayISODateLocal = () => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const isoDateToDateUTCNoTZShift = (iso) => {
+      // iso: YYYY-MM-DD
+      // Date('YYYY-MM-DD') peut être interprété en UTC selon navigateurs.
+      // On force une date UTC pour une comparaison stable.
+      const [y, m, d] = iso.split('-').map((x) => Number(x));
+      if (!y || !m || !d) return null;
+      const ms = Date.UTC(y, m - 1, d);
+      const dt = new Date(ms);
+      return Number.isFinite(dt.getTime()) ? dt : null;
+    };
+
+    const validate = () => {
+      const errors = [];
+      const title = (els.title.value || '').trim();
+      const priority = els.priority.value;
+      const dueDateISO = els.dueDate.value;
+
+      // Title
+      if (!title) {
+        errors.push({ field: els.title, message: 'Le titre est obligatoire.' });
+      } else if (title.length < 3) {
+        errors.push({ field: els.title, message: 'Le titre doit contenir au moins 3 caractères.' });
+      } else if (title.length > 80) {
+        errors.push({ field: els.title, message: 'Le titre ne doit pas dépasser 80 caractères.' });
+      }
+
+      // Priority
+      if (!priority || !['low', 'medium', 'high'].includes(priority)) {
+        errors.push({ field: els.priority, message: 'La priorité est obligatoire.' });
+      }
+
+      // Due date
+      if (!dueDateISO) {
+        errors.push({ field: els.dueDate, message: 'La date limite est obligatoire.' });
+      } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDateISO)) {
+        errors.push({ field: els.dueDate, message: 'Date invalide.' });
+      } else {
+        const todayISO = getTodayISODateLocal();
+        const dueDateObj = isoDateToDateUTCNoTZShift(dueDateISO);
+        const todayObj = isoDateToDateUTCNoTZShift(todayISO);
+
+        if (!dueDateObj || !todayObj) {
+          errors.push({ field: els.dueDate, message: 'Date invalide.' });
+        } else if (dueDateObj.getTime() < todayObj.getTime()) {
+          // Contrainte demandée
+          errors.push({ field: els.dueDate, message: 'La date limite ne peut pas être inférieure à la date actuelle.' });
+        }
+      }
+
+      // TODO: autres contraintes possibles (ex: éviter doublons)
+
+      return { ok: errors.length === 0, errors, value: { title, priority, dueDateISO } };
+    };
+
+    const showFieldError = (field, message) => {
+      if (!field) return;
+      const formField = field.closest('.form-field') || field.parentElement;
+      if (!formField) return;
+
+      let err = formField.querySelector('[data-error-for]');
+      if (!err || err.getAttribute('data-error-for') !== field.id) {
+        // Supprimer erreurs précédentes pour ce champ
+        const existing = formField.querySelectorAll('[data-error-for]');
+        existing.forEach((n) => n.remove());
+
+        err = document.createElement('div');
+        err.setAttribute('data-error-for', field.id);
+        err.setAttribute('role', 'alert');
+        err.style.marginTop = '6px';
+        err.style.color = 'rgba(255, 190, 190, 0.98)';
+        err.style.fontWeight = '800';
+        err.style.fontSize = '12.5px';
+        err.textContent = message;
+        formField.appendChild(err);
+      } else {
+        err.textContent = message;
+      }
+
+      field.setAttribute('aria-invalid', 'true');
+    };
+
+    const clearErrors = () => {
+      const formFields = document.querySelectorAll('main[aria-label="Gestion des tâches"] .form-field');
+      formFields.forEach((ff) => {
+        const errs = ff.querySelectorAll('[data-error-for]');
+        errs.forEach((n) => n.remove());
+      });
+      els.title?.removeAttribute('aria-invalid');
+      els.priority?.removeAttribute('aria-invalid');
+      els.dueDate?.removeAttribute('aria-invalid');
+    };
+
+    const parseTasks = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .filter(Boolean)
+          .map((t) => ({
+            id: String(t.id || ''),
+            title: String(t.title || ''),
+            priority: t.priority,
+            dueDateISO: t.dueDateISO,
+            status: t.status === 'done' ? 'done' : 'todo',
+            createdAtISO: t.createdAtISO || new Date().toISOString()
+          }))
+          .filter((t) => t.id && t.title && t.dueDateISO);
+      } catch {
+        return [];
+      }
+    };
+
+    const saveTasks = (tasks) => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    };
+
+    let tasks = parseTasks();
+
+    const uid = () =>
+      `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
+    const formatDueDateFR = (iso) => {
+      const d = isoDateToDateUTCNoTZShift(iso);
+      if (!d) return iso;
+      return new Intl.DateTimeFormat('fr-FR').format(d);
+    };
+
+    const priorityLabel = (p) => {
+      if (p === 'high') return 'Haute';
+      if (p === 'medium') return 'Moyenne';
+      return 'Faible';
+    };
+
+    const badgeClassForPriority = (p) => {
+      if (p === 'high') return 'badge--high';
+      if (p === 'medium') return 'badge--medium';
+      return 'badge--todo';
+    };
+
+    const render = (activeFilter = 'all') => {
+      const filtered =
+        activeFilter === 'all'
+          ? tasks
+          : tasks.filter((t) => t.status === activeFilter);
+
+      // empty
+      if (!filtered.length) {
+        els.emptyState.style.display = 'block';
+      } else {
+        els.emptyState.style.display = 'none';
+      }
+
+      // list
+      els.taskList.innerHTML = '';
+      const frag = document.createDocumentFragment();
+
+      // Tri: status todo d’abord? + dueDate asc + priority
+      const priorityRank = { high: 0, medium: 1, low: 2 };
+      filtered
+        .slice()
+        .sort((a, b) => {
+          const byDue = a.dueDateISO.localeCompare(b.dueDateISO);
+          if (byDue !== 0) return byDue;
+          const ra = priorityRank[a.priority] ?? 9;
+          const rb = priorityRank[b.priority] ?? 9;
+          return ra - rb;
+        })
+        .forEach((t) => {
+          const li = document.createElement('li');
+          li.className = 'home-dashboard__task';
+          li.setAttribute('role', 'listitem');
+
+          const statusBadge = document.createElement('span');
+          statusBadge.className = 'task-badge badge';
+          statusBadge.classList.add(t.status === 'done' ? 'badge--done' : 'badge--todo');
+          statusBadge.textContent = t.status === 'done' ? 'Terminée' : 'À faire';
+
+          const priorityBadge = document.createElement('span');
+          priorityBadge.className = 'task-badge badge';
+          if (t.priority === 'high') priorityBadge.classList.add('badge--high');
+          else if (t.priority === 'medium') priorityBadge.classList.add('badge--medium');
+          else priorityBadge.classList.add('badge--todo');
+          priorityBadge.textContent = `Priorité: ${priorityLabel(t.priority)}`;
+
+          const title = document.createElement('div');
+          title.className = 'home-dashboard__task-title';
+          title.textContent = t.title;
+
+          const meta = document.createElement('div');
+          meta.className = 'home-dashboard__task-meta';
+          meta.textContent = `Échéance: ${t.dueDateISO} (${formatDueDateFR(t.dueDateISO)})`;
+
+          const actions = document.createElement('div');
+          actions.style.display = 'flex';
+          actions.style.gap = '10px';
+          actions.style.alignItems = 'center';
+          actions.style.marginTop = '10px';
+          actions.style.flexWrap = 'wrap';
+
+          const toggleBtn = document.createElement('button');
+          toggleBtn.type = 'button';
+          toggleBtn.textContent = t.status === 'done' ? 'Remettre à faire' : 'Marquer terminée';
+
+          toggleBtn.style.height = '34px';
+          toggleBtn.style.padding = '0 12px';
+          toggleBtn.style.borderRadius = '12px';
+          toggleBtn.style.fontWeight = '900';
+          toggleBtn.style.border = '1px solid rgba(255,255,255,.12)';
+          toggleBtn.style.background = 'rgba(255,255,255,.03)';
+          toggleBtn.style.color = 'rgba(234,240,255,.95)';
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.textContent = 'Supprimer';
+
+          deleteBtn.style.height = '34px';
+          deleteBtn.style.padding = '0 12px';
+          deleteBtn.style.borderRadius = '12px';
+          deleteBtn.style.fontWeight = '900';
+          deleteBtn.style.border = '1px solid rgba(255,255,255,.12)';
+          deleteBtn.style.background = 'rgba(255,255,255,.03)';
+          deleteBtn.style.color = 'rgba(255, 200, 200, 0.95)';
+
+          toggleBtn.addEventListener('click', () => {
+            tasks = tasks.map((x) =>
+              x.id === t.id
+                ? { ...x, status: x.status === 'done' ? 'todo' : 'done' }
+                : x
+            );
+            saveTasks(tasks);
+            // garder filtre courant
+            render(getActiveFilter());
+          });
+
+          deleteBtn.addEventListener('click', () => {
+            const ok = window.confirm('Supprimer cette tâche ?');
+            if (!ok) return;
+            tasks = tasks.filter((x) => x.id !== t.id);
+            saveTasks(tasks);
+            render(getActiveFilter());
+          });
+
+          const left = document.createElement('div');
+          left.style.display = 'flex';
+          left.style.flexDirection = 'column';
+          left.style.gap = '8px';
+
+          const badgesRow = document.createElement('div');
+          badgesRow.style.display = 'flex';
+          badgesRow.style.gap = '8px';
+          badgesRow.style.flexWrap = 'wrap';
+          badgesRow.appendChild(statusBadge);
+          badgesRow.appendChild(priorityBadge);
+
+          left.appendChild(badgesRow);
+          left.appendChild(title);
+          left.appendChild(meta);
+
+          const right = document.createElement('div');
+          right.appendChild(actions);
+          actions.appendChild(toggleBtn);
+          actions.appendChild(deleteBtn);
+
+          li.appendChild(left);
+          li.appendChild(right);
+
+          frag.appendChild(li);
+        });
+
+      els.taskList.appendChild(frag);
+
+      // counters (global)
+      const total = tasks.length;
+      const todo = tasks.filter((t) => t.status === 'todo').length;
+      const done = total - todo;
+
+      if (els.statTotal) els.statTotal.textContent = String(total);
+      if (els.statTodo) els.statTodo.textContent = String(todo);
+      if (els.statDone) els.statDone.textContent = String(done);
+
+      if (els.taskCount) els.taskCount.textContent = String(total);
+    };
+
+    const getActiveFilter = () => {
+      const active = els.filterBtns.find((b) => b.getAttribute('aria-pressed') === 'true');
+      return active?.dataset?.filter || 'all';
+    };
+
+    const setActiveFilter = (filter) => {
+      els.filterBtns.forEach((btn) => {
+        const isActive = btn.dataset.filter === filter;
+        btn.setAttribute('aria-pressed', String(isActive));
+        btn.classList.toggle('is-active', isActive);
+      });
+      render(filter);
+    };
+
+    // Filters init
+    els.filterBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const filter = btn.dataset.filter || 'all';
+        setActiveFilter(filter);
+      });
+    });
+
+    // default filter
+    const defaultFilterBtn = els.filterBtns.find((b) => b.dataset.filter === 'all') || els.filterBtns[0];
+    if (defaultFilterBtn) {
+      defaultFilterBtn.setAttribute('aria-pressed', 'true');
+      defaultFilterBtn.classList.add('is-active');
+    }
+
+    // Form submit
+    els.form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const result = validate();
+      if (!result.ok) {
+        // show first error only
+        const first = result.errors[0];
+        showFieldError(first.field, first.message);
+        first.field.focus({ preventScroll: false });
+        if (els.emptyState) {
+          els.emptyState.textContent = first.message;
+          els.emptyState.style.display = 'block';
+        }
+        return;
+      }
+
+      const { title, priority, dueDateISO } = result.value;
+
+      const newTask = {
+        id: uid(),
+        title,
+        priority,
+        dueDateISO,
+        status: 'todo',
+        createdAtISO: new Date().toISOString()
+      };
+
+      tasks.push(newTask);
+      saveTasks(tasks);
+
+      // UX: reset form
+      els.form.reset();
+
+      // Re-apply min date behavior via validation (et éventuellement HTML)
+      // set dueDate min to today
+      const todayISO = getTodayISODateLocal();
+      els.dueDate.min = todayISO;
+
+      // render
+      render(getActiveFilter());
+    });
+
+    // clear completed
+    els.clearCompletedBtn?.addEventListener('click', () => {
+      const doneCount = tasks.filter((t) => t.status === 'done').length;
+      if (!doneCount) {
+        // petit feedback
+        if (els.emptyState) {
+          els.emptyState.textContent = 'Aucune tâche terminée à effacer.';
+          els.emptyState.style.display = 'block';
+        }
+        render(getActiveFilter());
+        return;
+      }
+
+      const ok = window.confirm(`Effacer ${doneCount} tâche(s) terminée(s) ?`);
+      if (!ok) return;
+
+      tasks = tasks.filter((t) => t.status !== 'done');
+      saveTasks(tasks);
+      render(getActiveFilter());
+    });
+
+    // Date picker constraint: today min
+    const todayISO = getTodayISODateLocal();
+    if (els.dueDate) {
+      els.dueDate.min = todayISO;
+    }
+
+    // initial
+    render('all');
+    // s’assurer que le filtre actif est respecté
+    const currentFilter = getActiveFilter();
+    render(currentFilter);
+
+    // Accessibilité: feedback clavier rapide
+    // (aucun focus trap ici)
+    if (reduceMotion) {
+      // rien
+    }
+  };
+
+  // init page tâches après DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTaskPage, { once: true });
+  } else {
+    initTaskPage();
+  }
+})();
