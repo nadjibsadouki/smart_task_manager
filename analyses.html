@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smart Task Manager — Analyses</title>
+
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <script src="script.js" defer></script>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main" aria-label="Aller au contenu principal">Aller au contenu</a>
+
+    <header class="home-header" role="banner" aria-label="En-tête Smart Task Manager">
+      <div class="home-header__inner">
+        <a
+          class="home-brand"
+          href="index.html"
+          aria-label="Smart Task Manager — Accueil"
+        >
+          <span class="home-brand__logo" aria-hidden="true">✓</span>
+          <span class="home-brand__text">Smart Task Manager</span>
+        </a>
+
+        <nav class="home-nav" aria-label="Navigation principale">
+          <ul class="home-nav__list">
+            <li><a href="index.html" aria-label="Accès à Accueil">Accueil</a></li>
+            <li><a href="tache.html" aria-label="Accès à Tâches">Tâches</a></li>
+<li><a href="IA.html" aria-label="Accès à IA">IA</a></li>
+            <li><a href="analyses.html" aria-label="Accès à Analyses">Analyses</a></li>
+            <li><a href="focus.html" aria-label="Accès à Focus">Focus</a></li>
+          </ul>
+        </nav>
+
+<a class="home-launch" href="tache.html" aria-label="Lancer l’application">
+          Lancer l’application
+        </a>
+      </div>
+    </header>
+
+    <main id="main" class="home-main" role="main" aria-label="Analyses et indicateurs">
+      <section class="home-section analyses-hero" aria-labelledby="analysesHeroTitle">
+        <div class="home-section__inner analyses-hero__inner">
+          <h1 id="analysesHeroTitle" class="analyses-main-title">Tableau de bord analytique</h1>
+          <p class="analyses-main-subtitle">Suivez vos tâches, vos priorités et votre progression.</p>
+        </div>
+      </section>
+
+      <section class="home-section analyses-kpi" aria-labelledby="analysesKpiTitle">
+        <div class="home-section__inner">
+          <h2 id="analysesKpiTitle" class="analyses-kpi__title">Indicateurs clés</h2>
+
+          <div class="analyses-kpi__grid" role="list" aria-label="Cartes KPI">
+            <article class="analyses-kpi__card" role="listitem" aria-label="Total des tâches">
+              <div class="analyses-kpi__label">Total des tâches</div>
+              <div class="analyses-kpi__value" aria-hidden="true">—</div>
+              <p class="analyses-kpi__hint">Nombre total enregistré</p>
+            </article>
+
+            <article class="analyses-kpi__card" role="listitem" aria-label="Tâches terminées">
+              <div class="analyses-kpi__label">Tâches terminées</div>
+              <div class="analyses-kpi__value" aria-hidden="true">—</div>
+              <p class="analyses-kpi__hint">Travail finalisé sur la période</p>
+            </article>
+
+            <article class="analyses-kpi__card" role="listitem" aria-label="Tâches en cours">
+              <div class="analyses-kpi__label">Tâches en cours</div>
+              <div class="analyses-kpi__value" aria-hidden="true">—</div>
+              <p class="analyses-kpi__hint">Activités actuellement en progression</p>
+            </article>
+
+            <article class="analyses-kpi__card" role="listitem" aria-label="Taux de réussite">
+              <div class="analyses-kpi__label">Taux de réussite</div>
+              <div class="analyses-kpi__value" aria-hidden="true">—%</div>
+              <p class="analyses-kpi__hint">Part des tâches menées à bien</p>
+            </article>
+
+            <article class="analyses-kpi__card" role="listitem" aria-label="Priorité haute">
+              <div class="analyses-kpi__label">Priorité haute</div>
+              <div class="analyses-kpi__value" aria-hidden="true">—</div>
+              <p class="analyses-kpi__hint">Tâches critiques à traiter en priorité</p>
+            </article>
+
+            <article class="analyses-kpi__card" role="listitem" aria-label="Productivité hebdomadaire">
+              <div class="analyses-kpi__label">Productivité hebdomadaire</div>
+              <div class="analyses-kpi__value" aria-hidden="true">—</div>
+              <p class="analyses-kpi__hint">Résultats sur les 7 derniers jours</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="home-section analyses-graphs" aria-labelledby="analysesGraphsTitle">
+        <div class="home-section__inner">
+          <h2 id="analysesGraphsTitle" class="analyses-graphs__title">Graphiques à venir</h2>
+
+          <div class="analyses-graphs__grid" aria-label="Zones de graphiques">
+            <article class="analyses-graphs__block" aria-label="Répartition par priorité">
+              <h3 class="analyses-graphs__block-title">Répartition par priorité</h3>
+              <canvas id="chartPriorite" aria-label="Graphique en barres : répartition par priorité" role="img"></canvas>
+            </article>
+
+            <article class="analyses-graphs__block" aria-label="Répartition par statut">
+              <h3 class="analyses-graphs__block-title">Répartition par statut</h3>
+              <canvas id="chartStatut" aria-label="Graphique doughnut : tâches terminées vs à faire" role="img"></canvas>
+            </article>
+
+            <article class="analyses-graphs__block" aria-label="Tâches terminées par jour">
+              <h3 class="analyses-graphs__block-title">Tâches terminées par jour</h3>
+              <canvas id="chartTermineesParJour" aria-label="Graphique en ligne : tâches terminées par jour" role="img"></canvas>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="home-section analyses-recommendations" aria-labelledby="analysesRecTitle">
+        <div class="home-section__inner">
+          <h2 id="analysesRecTitle" class="analyses-recommendations__title">Recommandations intelligentes</h2>
+          <p class="analyses-recommendations__text">
+            Les futures analyses IA aideront à identifier les tâches urgentes et les habitudes de productivité.
+          </p>
+        </div>
+      </section>
+
+      <section class="home-section analyses-history" aria-labelledby="analysesHistoryTitle">
+        <div class="home-section__inner">
+          <h2 id="analysesHistoryTitle" class="analyses-history__title">Historique</h2>
+
+          <div class="analyses-history__table-wrapper" role="region" aria-label="Tableau historique">
+            <table class="analyses-history__table">
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Action</th>
+                  <th scope="col">Catégorie</th>
+                  <th scope="col">Résultat</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2026-06-05</td>
+                  <td>Création de tâche</td>
+                  <td>Travail</td>
+                  <td>Ajouté au planning</td>
+                </tr>
+                <tr>
+                  <td>2026-06-09</td>
+                  <td>Marquer comme terminé</td>
+                  <td>Études</td>
+                  <td>Succès</td>
+                </tr>
+                <tr>
+                  <td>2026-06-12</td>
+                  <td>Changement de priorité</td>
+                  <td>Personnel</td>
+                  <td>Priorité élevée</td>
+                </tr>
+                <tr>
+                  <td>2026-06-16</td>
+                  <td>Report</td>
+                  <td>Travail</td>
+                  <td>Nouvelle échéance</td>
+                </tr>
+                <tr>
+                  <td>2026-06-20</td>
+                  <td>Optimisation</td>
+                  <td>Productivité</td>
+                  <td>Meilleure cadence</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="home-footer" role="contentinfo" aria-label="Pied de page">
+      <div class="home-footer__inner">
+        <div class="home-footer__copyright">
+          © 2026 Smart Task Manager. Tous droits réservés.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
+

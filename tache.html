@@ -29,13 +29,13 @@
           <ul class="home-nav__list">
             <li><a href="index.html" aria-label="Accès à Accueil">Accueil</a></li>
             <li><a href="tache.html" aria-label="Accès à Tâches">Tâches</a></li>
-            <li><a href="ai.html" aria-label="Accès à IA">IA</a></li>
+<li><a href="IA.html" aria-label="Accès à IA">IA</a></li>
             <li><a href="analyses.html" aria-label="Accès à Analyses">Analyses</a></li>
-            <li><a href="A_propos.html" aria-label="Accès à À propos">À propos</a></li>
+            <li><a href="focus.html" aria-label="Accès à Focus">Focus</a></li>
           </ul>
         </nav>
 
-        <a class="home-launch" href="tasks.html" aria-label="Lancer l’application">
+<a class="home-launch" href="tache.html" aria-label="Lancer l’application">
           Lancer l’application
         </a>
       </div>
@@ -136,9 +136,18 @@
                   <strong id="taskCount">0</strong>
                 </p>
 
+                <div
+                  id="taskErrorBox"
+                  class="task-error-box"
+                  role="alert"
+                  aria-live="assertive"
+                  style="display:none;"
+                ></div>
+
                 <div id="emptyState" class="empty-state" role="status" aria-live="polite">
                   Aucune tâche pour le moment.
                 </div>
+
 
                 <ul id="taskList" class="home-dashboard__task-list" aria-label="Liste des tâches">
                   <!-- Les éléments seront injectés par script.js -->

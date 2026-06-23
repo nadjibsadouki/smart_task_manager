@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smart Task Manager — Assistant IA</title>
+
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main" aria-label="Aller au contenu principal"
+      >Aller au contenu</a>
+
+    <header class="home-header" role="banner" aria-label="En-tête Smart Task Manager">
+      <div class="home-header__inner">
+        <a
+          class="home-brand"
+          href="index.html"
+          aria-label="Smart Task Manager — Accueil"
+        >
+          <span class="home-brand__logo" aria-hidden="true">✓</span>
+          <span class="home-brand__text">Smart Task Manager</span>
+        </a>
+
+        <nav class="home-nav" aria-label="Navigation principale">
+          <ul class="home-nav__list">
+            <li><a href="index.html" aria-label="Accès à Accueil">Accueil</a></li>
+            <li><a href="tache.html" aria-label="Accès à Tâches">Tâches</a></li>
+            <li><a href="IA.html" aria-label="Accès à IA">IA</a></li>
+            <li><a href="analyses.html" aria-label="Accès à Analyses">Analyses</a></li>
+            <li><a href="focus.html" aria-label="Accès à Focus">Focus</a></li>
+          </ul>
+        </nav>
+
+        <a class="home-launch" href="tache.html" aria-label="Lancer l’application">
+          Lancer l’application
+        </a>
+      </div>
+    </header>
+
+    <main id="main" class="home-main" role="main" aria-label="Assistant IA">
+      <section class="ai-hero" aria-labelledby="aiHeroTitle">
+        <div class="ai-hero__inner">
+          <div class="ai-hero__badge" role="note">Assistant IA</div>
+          <h1 id="aiHeroTitle">Assistant IA pour organiser vos tâches</h1>
+          <p class="ai-hero__text">
+            Analysez votre liste de tâches et obtenez des suggestions actionnables pour
+            prioriser, mieux gérer l’urgence et avancer plus sereinement.
+          </p>
+        </div>
+      </section>
+
+      <section class="home-section ai-analyse" aria-labelledby="aiAnalyseTitle">
+        <div class="home-section__inner ai-analyse__inner">
+          <h2 id="aiAnalyseTitle">Analyse rapide</h2>
+          <p class="ai-analyse__hint">
+            Décrivez vos tâches (ou collez votre liste) et lancez l’analyse pour recevoir une
+            proposition structurée.
+          </p>
+
+          <div class="ai-analyse__form" role="group" aria-label="Formulaire d’analyse IA">
+            <label class="ai-analyse__label" for="aiInput">
+              Votre liste de tâches
+            </label>
+
+            <textarea
+              id="aiInput"
+              name="tasksText"
+              class="ai-textarea"
+              rows="7"
+              required
+              aria-required="true"
+              placeholder="Ex : Répondre aux e-mails (aujourd’hui) / Préparer le reporting (date limite demain) / Réviser le dossier (bientôt)..."
+            ></textarea>
+
+            <div class="ai-analyse__actions" aria-label="Actions d’analyse">
+              <button
+                class="ai-analyse__btn"
+                type="button"
+                aria-label="Analyser la liste de tâches"
+              >
+                Analyser
+              </button>
+            </div>
+        </div>
+      </section>
+
+      <section class="home-section ai-result" aria-labelledby="aiResultTitle">
+        <div class="home-section__inner ai-result__inner">
+          <h2 id="aiResultTitle">Résultat IA</h2>
+          <p class="ai-result__hint">
+            Les champs ci-dessous présentent une suggestion de priorités, d’urgence et de conseil
+            de planification.
+          </p>
+
+          <div class="ai-result__grid" role="region" aria-label="Synthèse de l’IA">
+            <article class="ai-card" aria-label="Priorité suggérée">
+              <h3 class="ai-card__title">Priorité suggérée</h3>
+              <p class="ai-card__value" aria-live="polite">—</p>
+              <p class="ai-card__meta">Ordre recommandé pour commencer efficacement.</p>
+            </article>
+
+            <article class="ai-card" aria-label="Urgence et timing">
+              <h3 class="ai-card__title">Urgence</h3>
+              <p class="ai-card__value" aria-live="polite">—</p>
+              <p class="ai-card__meta">Tâches à traiter en premier selon l’échéance.</p>
+            </article>
+
+            <article class="ai-card" aria-label="Conseil personnalisé">
+              <h3 class="ai-card__title">Conseil IA</h3>
+              <p class="ai-card__value ai-card__value--text" aria-live="polite">
+                — (obtenu après analyse)
+              </p>
+              <p class="ai-card__meta">Une recommandation claire pour mieux organiser la suite.</p>
+            </article>
+          </div>
+      </section>
+
+      <section class="home-section ai-daily" aria-labelledby="aiDailyTitle">
+        <div class="home-section__inner ai-daily__inner">
+          <h2 id="aiDailyTitle">Résumé du jour</h2>
+
+          <div class="ai-daily__list" role="list" aria-label="Résumé quotidien conseillé">
+            <div class="ai-line" role="listitem" aria-label="Objectif du jour">
+              <span class="ai-line__label">Objectif</span>
+              <span class="ai-line__value" aria-live="polite">—</span>
+            </div>
+
+            <div class="ai-line" role="listitem" aria-label="Top priorité">
+              <span class="ai-line__label">Top priorité</span>
+              <span class="ai-line__value" aria-live="polite">—</span>
+            </div>
+
+            <div class="ai-line" role="listitem" aria-label="Prochaine action">
+              <span class="ai-line__label">Prochaine action</span>
+              <span class="ai-line__value" aria-live="polite">—</span>
+            </div>
+
+            <div class="ai-line" role="listitem" aria-label="Risque principal à éviter">
+              <span class="ai-line__label">Risque</span>
+              <span class="ai-line__value" aria-live="polite">—</span>
+            </div>
+        </div>
+      </section>
+
+      <section class="home-section ai-reco" aria-labelledby="aiRecoTitle">
+        <div class="home-section__inner ai-reco__inner">
+          <h2 id="aiRecoTitle">Recommandations intelligentes</h2>
+          <p class="ai-reco__hint">
+            Des suggestions concrètes pour gagner du temps, réduire les interruptions et
+            mieux répartir les efforts.
+          </p>
+
+          <div class="ai-reco__cards" role="list" aria-label="Liste des recommandations">
+            <article class="ai-reco-card" role="listitem" aria-label="Regroupement par similarité">
+              <h3 class="ai-reco-card__title">Regrouper les tâches similaires</h3>
+              <p class="ai-reco-card__text">
+                Limitez le changement de contexte en enchaînant des actions proches (même type,
+                même objectif ou même espace de travail).
+              </p>
+            </article>
+
+            <article class="ai-reco-card" role="listitem" aria-label="Découpage en micro-étapes">
+              <h3 class="ai-reco-card__title">Découper en micro-étapes</h3>
+              <p class="ai-reco-card__text">
+                Transformez chaque tâche complexe en une prochaine action simple, réalisable
+                en peu de temps, pour démarrer sans friction.
+              </p>
+            </article>
+
+            <article class="ai-reco-card" role="listitem" aria-label="Planification par échéance">
+              <h3 class="ai-reco-card__title">Planifier par échéance</h3>
+              <p class="ai-reco-card__text">
+                Traitez en premier ce qui est le plus urgent, puis élargissez progressivement
+                vers les échéances plus lointaines.
+              </p>
+            </article>
+
+            <article class="ai-reco-card" role="listitem" aria-label="Réduction des interruptions">
+              <h3 class="ai-reco-card__title">Réduire les interruptions</h3>
+              <p class="ai-reco-card__text">
+                Créez une fenêtre de concentration, définissez une limite de vérification et
+                protégez votre attention pour accélérer la progression.
+              </p>
+            </article>
+          </div>
+      </section>
+    </main>
+
+    <footer class="home-footer" role="contentinfo" aria-label="Pied de page">
+      <div class="home-footer__inner">
+        <div class="home-footer__copyright">
+          © 2026 Smart Task Manager. Tous droits réservés.
+        </div>
+    </footer>
+  </body>
+</html>

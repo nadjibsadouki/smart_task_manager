@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smart Task Manager — Focus</title>
+
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main" aria-label="Aller au contenu principal">Aller au contenu</a>
+
+    <header class="home-header" role="banner" aria-label="En-tête Smart Task Manager">
+      <div class="home-header__inner">
+        <a
+          class="home-brand"
+          href="index.html"
+          aria-label="Smart Task Manager — Accueil"
+        >
+          <span class="home-brand__logo" aria-hidden="true">✓</span>
+          <span class="home-brand__text">Smart Task Manager</span>
+        </a>
+
+        <nav class="home-nav" aria-label="Navigation principale">
+          <ul class="home-nav__list">
+            <li><a href="index.html" aria-label="Accès à Accueil">Accueil</a></li>
+            <li><a href="tache.html" aria-label="Accès à Tâches">Tâches</a></li>
+            <li><a href="IA.html" aria-label="Accès à IA">IA</a></li>
+            <li><a href="analyses.html" aria-label="Accès à Analyses">Analyses</a></li>
+            <li><a href="focus.html" aria-label="Accès à Focus">Focus</a></li>
+          </ul>
+        </nav>
+
+        <a class="home-launch" href="tache.html" aria-label="Lancer l’application">
+          Lancer l’application
+        </a>
+      </div>
+    </header>
+
+    <main id="main" class="home-main" role="main" aria-label="Page Focus">
+      <section class="focus-main" aria-labelledby="focusTitle">
+        <div class="focus-hero" role="region" aria-label="Présentation de la session de concentration">
+          <h1 id="focusTitle">Centre de concentration</h1>
+          <p>Travaillez sur l'essentiel sans distraction.</p>
+        </div>
+
+        <section class="focus-session" aria-labelledby="focusSessionTitle">
+          <h2 id="focusSessionTitle">Session de concentration</h2>
+
+          <div aria-label="Détails du minuteur">
+            <p><strong>Minuteur principal</strong></p>
+            <p>
+              <span>Durée de session :</span>
+              <span aria-label="Durée de session">25 min</span>
+            </p>
+            <p>
+              <span>Temps restant :</span>
+              <span aria-label="Temps restant">12 min 00 s</span>
+            </p>
+          </div>
+        </section>
+
+        <section class="focus-task" aria-labelledby="focusTaskTitle">
+          <h2 id="focusTaskTitle">Tâche principale</h2>
+
+          <div aria-label="Carte de la tâche sélectionnée">
+            <figure>
+              <figcaption>Carte de la tâche actuellement sélectionnée</figcaption>
+              <div role="img" aria-label="Carte (aperçu) de la tâche">« Prioriser le planning »</div>
+            </figure>
+          </div>
+
+          <div aria-label="Informations sur la tâche">
+            <p><strong>Priorité :</strong> Haute</p>
+            <p><strong>Date limite :</strong> 2026-06-28</p>
+          </div>
+        </section>
+
+        <section class="focus-goals" aria-labelledby="focusGoalsTitle">
+          <h2 id="focusGoalsTitle">Objectifs du jour</h2>
+          <ul aria-label="Liste des objectifs quotidiens">
+            <li>Terminer la tâche principale avant la prochaine pause.</li>
+            <li>Réduire les interruptions : mode concentré activé.</li>
+            <li>Préparer 1 prochaine action concrète pour après la session.</li>
+          </ul>
+        </section>
+
+        <section class="focus-stats" aria-labelledby="focusStatsTitle">
+          <h2 id="focusStatsTitle">Statistiques de concentration</h2>
+
+          <ul aria-label="Indicateurs de performance">
+            <li>
+              <strong>Temps de focus aujourd'hui :</strong> 50 min
+            </li>
+            <li>
+              <strong>Sessions terminées :</strong> 2
+            </li>
+            <li>
+              <strong>Série de jours productifs :</strong> 5
+            </li>
+          </ul>
+        </section>
+
+        <section class="focus-tips" aria-labelledby="focusTipsTitle">
+          <h2 id="focusTipsTitle">Conseils de productivité</h2>
+
+          <div aria-label="Conseils pratiques">
+            <article>
+              <h3>Préparez votre environnement</h3>
+              <p>Ouvrez uniquement les ressources nécessaires. Le reste attendra après la session.</p>
+            </article>
+
+            <article>
+              <h3>Découpez en micro-étapes</h3>
+              <p>Définissez une prochaine action simple. Vous avancerez plus vite, même si la tâche est complexe.</p>
+            </article>
+
+            <article>
+              <h3>Protégez votre attention</h3>
+              <p>Activez le mode concentration et fixez une limite aux vérifications (messages, e-mails, réseaux).</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="focus-quote" aria-labelledby="focusQuoteTitle">
+          <h2 id="focusQuoteTitle">Citation motivante</h2>
+          <blockquote>
+            « La productivité, ce n’est pas faire plus. C’est faire mieux — au bon moment. »
+          </blockquote>
+        </section>
+      </section>
+    </main>
+
+    <footer class="home-footer" role="contentinfo" aria-label="Pied de page">
+      <div class="home-footer__inner">
+        <div class="home-footer__copyright">
+          © 2026 Smart Task Manager. Tous droits réservés.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
+
