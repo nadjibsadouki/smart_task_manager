@@ -31,16 +31,16 @@
 
         <nav class="home-nav" aria-label="Navigation principale">
           <ul class="home-nav__list">
-            <li><a href="index.html" aria-label="Accès à Accueil">Accueil</a></li>
-            <li><a href="tache.html" aria-label="Accès à Tâches">Tâches</a></li>
+<li><a href="index.html" aria-label="Accès à Accueil" aria-current="page">Accueil</a></li>
+<li><a href="tache.html" aria-label="Accès à Tâches">Tâches</a></li>
 <li><a href="IA.html" aria-label="Accès à IA">IA</a></li>
             <li><a href="analyses.html" aria-label="Accès à Analyses">Analyses</a></li>
             <li><a href="focus.html" aria-label="Accès à Focus">Focus</a></li>
           </ul>
         </nav>
 
-<a class="home-launch" href="tache.html" aria-label="Lancer l’application">
-          Lancer l’application
+<a id="authHeaderBtn" class="home-launch" href="auth.html" aria-label="Connexion">
+          Connexion
         </a>
       </div>
     </header>
@@ -58,10 +58,10 @@
           </p>
 
           <div class="home-hero__actions" aria-label="Actions principales">
-            <a class="home-cta home-cta--primary" href="tasks.html" aria-label="Démarrer la gestion de tâches">
+<a class="home-cta home-cta--primary" href="tache.html" aria-label="Démarrer la gestion de tâches">
               Démarrer la gestion <span aria-hidden="true">→</span>
             </a>
-            <a class="home-cta home-cta--secondary" href="ai.html" aria-label="Voir les fonctionnalités IA">
+<a class="home-cta home-cta--secondary" href="IA.html" aria-label="Voir les fonctionnalités IA">
               Voir les fonctionnalités IA
             </a>
 
@@ -114,62 +114,54 @@
         </div>
       </section>
 
-      <section class="home-section" aria-labelledby="dashboardPreviewTitle">
+      <section class="home-section" aria-labelledby="adsSpaceTitle">
         <div class="home-section__inner">
-          <h2 id="dashboardPreviewTitle">Aperçu du tableau de bord</h2>
+          <div class="home-ads" aria-label="Gestion des publicités">
+            <div class="home-ads__badge" role="note">Publicité</div>
+            <h2 class="home-ads__title" id="adsSpaceTitle">Espace publicitaire</h2>
+            <p class="home-ads__subtitle">Ajoutez vos annonces et affichez-les automatiquement.</p>
 
-
-          <div class="home-dashboard" aria-label="Prévisualisation du tableau de bord">
-            <div class="home-dashboard__stats" aria-label="Statistiques">
-              <div class="home-mini-stat" aria-label="Tâches totales">
-
-                <div class="home-mini-stat__label">Total</div>
-
-                <div class="home-mini-stat__value">12</div>
-              </div>
-              <div class="home-mini-stat" aria-label="Tâches à faire">
-                <div class="home-mini-stat__label">À faire</div>
-                <div class="home-mini-stat__value">7</div>
-              </div>
-              <div class="home-mini-stat" aria-label="Tâches terminées">
-                <div class="home-mini-stat__label">Terminées</div>
-                <div class="home-mini-stat__value">5</div>
-              </div>
+            <div class="home-ads__zone" aria-label="Zone d’affichage publicitaire horizontale">
+              <div id="adsContainer" class="home-ads__container" aria-live="polite"></div>
             </div>
 
-            <div class="home-dashboard__grid">
-              <div class="home-dashboard__tasks" aria-label="Tâches fictives">
-                <h3 class="home-dashboard__subtitle">Tâches</h3>
+            <div class="home-ads__actions" aria-label="Actions publicitaires">
+              <button
+                id="addAdBtn"
+                class="home-ads__button"
+                type="button"
+                aria-label="Ajouter une publicité"
+              >
+                Ajouter une publicité
+              </button>
 
-                <ul class="home-dashboard__task-list" aria-label="Liste de tâches">
-                  <li class="home-dashboard__task" aria-label="Tâche : Prioriser le planning">
-                    <span class="home-dashboard__task-title">Prioriser le planning</span>
-                    <span class="home-dashboard__task-meta">Priorité: Haute • Échéance: 2026-06-28</span>
-                  </li>
-                  <li class="home-dashboard__task" aria-label="Tâche : Préparer le sprint">
-                    <span class="home-dashboard__task-title">Préparer le sprint</span>
-                    <span class="home-dashboard__task-meta">Priorité: Moyenne • Échéance: 2026-07-03</span>
-                  </li>
-                  <li class="home-dashboard__task" aria-label="Tâche : Finaliser le reporting">
-                    <span class="home-dashboard__task-title">Finaliser le reporting</span>
-                    <span class="home-dashboard__task-meta">Priorité: Faible • Échéance: 2026-07-06</span>
-                  </li>
-                </ul>
-              </div>
+              <input
+                id="adImageInput"
+                type="file"
+                accept="image/*"
+                aria-label="Choisir une image publicitaire"
+                style="display:none;"
+              />
 
-              <aside class="home-dashboard__ai" aria-label="Suggestion IA">
-                <h3 class="home-dashboard__subtitle">Suggestion IA</h3>
-
-                <p class="home-dashboard__ai-text">
-                  « Envisage de traiter d’abord les tâches à échéance proche et de regrouper les actions
-                  similaires pour réduire le contexte switching. »
-                </p>
-                <div class="home-dashboard__ai-chip" role="note">Résumé IA (exemple)</div>
-              </aside>
+              <button
+                id="removeAdBtn"
+                class="home-ads__button home-ads__button--danger"
+                type="button"
+                aria-label="Supprimer une publicité"
+              >
+                Supprimer une publicité
+              </button>
             </div>
+
+
+            <p id="emptyAdsMessage" class="home-ads__empty" aria-live="polite">
+              Aucune publicité ajoutée pour le moment.
+            </p>
           </div>
         </div>
       </section>
+
+
 
       <section class="home-section" aria-labelledby="roadmapTitle">
         <div class="home-section__inner">
@@ -201,16 +193,7 @@
         </div>
       </section>
 
-      <section class="home-section home-final-cta" aria-labelledby="homeCtaTitle">
-        <div class="home-section__inner">
-          <h2 id="homeCtaTitle">Prêt à reprendre le contrôle ?</h2>
-          <p class="home-paragraph">
-            Lance l’application et commence à planifier avec une méthode claire.
-          </p>
-          <a class="home-cta__button" href="tasks.html" aria-label="Aller à tasks.html">Aller aux tâches</a>
 
-        </div>
-      </section>
     </main>
 
     <footer class="home-footer" role="contentinfo" aria-label="Pied de page">

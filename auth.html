@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smart Task Manager — Authentification</title>
+
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main" aria-label="Aller au contenu principal">Aller au contenu</a>
+
+
+
+    <main id="main" class="home-main" role="main" aria-label="Page d’authentification">
+      <section class="home-section auth-main" aria-labelledby="authMainTitle">
+        <div class="home-section__inner">
+          <h1 id="authMainTitle">Accès à votre espace</h1>
+          <p class="auth-main__subtitle">
+            Connectez-vous ou créez un compte pour gérer vos tâches intelligemment.
+          </p>
+        </div>
+      </section>
+
+      <section class="home-section auth-block" aria-labelledby="authBlockTitle">
+        <div class="home-section__inner">
+          <h2 id="authBlockTitle" class="auth-block__title">Authentification</h2>
+
+          <div class="auth-tabs" role="tablist" aria-label="Choisir un mode">
+            <button
+              id="authLoginTab"
+              class="auth-tabs__tab"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="authLoginForm"
+            >
+              Connexion
+            </button>
+
+            <button
+              id="authRegisterTab"
+              class="auth-tabs__tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="authRegisterForm"
+            >
+              Inscription
+            </button>
+          </div>
+
+          <div class="auth-panels">
+            <section
+              id="authLoginPanel"
+              class="auth-panel"
+              role="tabpanel"
+              aria-labelledby="authLoginTab"
+            >
+              <form
+                id="authLoginForm"
+                class="auth-form auth-form--login"
+                aria-label="Formulaire de connexion"
+                method="post"
+              >
+                <div class="form-field">
+                  <label for="authEmail">Email</label>
+                  <input
+                    id="authEmail"
+                    name="email"
+                    type="email"
+                    autocomplete="email"
+                    required
+                    aria-required="true"
+                  />
+                </div>
+
+                <div class="form-field">
+                  <label for="authPassword">Mot de passe</label>
+                  <input
+                    id="authPassword"
+                    name="password"
+                    type="password"
+                    autocomplete="current-password"
+                    required
+                    aria-required="true"
+                  />
+                </div>
+
+                <div class="form-field form-field--checkbox">
+                  <input
+                    id="authRememberMe"
+                    name="rememberMe"
+                    type="checkbox"
+                    value="1"
+                  />
+                  <label for="authRememberMe">Se souvenir de moi</label>
+                </div>
+
+                <div class="auth-form__actions">
+<a class="auth-form__link" href="auth.html" aria-label="Mot de passe oublié ?">
+                    Mot de passe oublié ?
+                  </a>
+                </div>
+
+                <div class="auth-form__submit">
+                  <button id="authLoginSubmit" type="submit">Se connecter</button>
+                </div>
+              </form>
+            </section>
+
+            <section
+              id="authRegisterPanel"
+              class="auth-panel"
+              role="tabpanel"
+              aria-labelledby="authRegisterTab"
+            >
+              <form
+                id="authRegisterForm"
+                class="auth-form auth-form--register"
+                aria-label="Formulaire d’inscription"
+                method="post"
+              >
+                <div class="form-field">
+                  <label for="authFullName">Nom complet</label>
+                  <input
+                    id="authFullName"
+                    name="fullName"
+                    type="text"
+                    autocomplete="name"
+                    required
+                    aria-required="true"
+                  />
+                </div>
+
+                <div class="form-field">
+                  <label for="authRegisterEmail">Email</label>
+                  <input
+                    id="authRegisterEmail"
+                    name="email"
+                    type="email"
+                    autocomplete="email"
+                    required
+                    aria-required="true"
+                  />
+                </div>
+
+                <div class="form-field">
+                  <label for="authRegisterPassword">Mot de passe</label>
+                  <input
+                    id="authRegisterPassword"
+                    name="password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                    aria-required="true"
+                  />
+                </div>
+
+                <div class="form-field">
+                  <label for="authConfirmPassword">Confirmer le mot de passe</label>
+                  <input
+                    id="authConfirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                    aria-required="true"
+                  />
+                </div>
+
+                <div class="form-field form-field--checkbox">
+                  <input
+                    id="authAcceptTerms"
+                    name="acceptTerms"
+                    type="checkbox"
+                    value="1"
+                    required
+                    aria-required="true"
+                  />
+                  <label for="authAcceptTerms" class="auth-terms-label">
+                    J’accepte les
+                    <button
+                      class="auth-terms-link"
+                      type="button"
+                      id="authTermsLink"
+                      aria-haspopup="dialog"
+                      aria-controls="authTermsModal"
+                    >
+                      conditions d’utilisation
+                    </button>
+                  </label>
+
+
+                  <div
+                    class="auth-modal"
+                    id="authTermsModal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="authTermsModalTitle"
+                    aria-hidden="true"
+                  >
+                    <div class="auth-modal__overlay" data-auth-modal-overlay></div>
+
+                    <div class="auth-modal__panel" role="document" tabindex="-1">
+                      <h3 class="auth-modal__title" id="authTermsModalTitle">
+                        Conditions d’utilisation
+                      </h3>
+
+                      <p class="auth-modal__text">
+
+En utilisant Smart Task Manager, vous acceptez d’utiliser cette application uniquement dans un cadre personnel, académique ou professionnel légitime. L’application a pour objectif d’aider l’utilisateur à organiser ses tâches, gérer ses priorités, suivre ses échéances et améliorer sa productivité.
+
+L’utilisateur est responsable des informations qu’il saisit dans l’application. Il s’engage à ne pas enregistrer de contenu illégal, offensant, confidentiel ou appartenant à des tiers sans autorisation.
+
+Les données saisies peuvent être stockées localement dans le navigateur afin de conserver les tâches et les préférences de l’utilisateur. Cette version du projet ne garantit pas encore une synchronisation en ligne ni une sauvegarde permanente sur serveur.
+
+Smart Task Manager est fourni comme projet évolutif. Certaines fonctionnalités, notamment l’assistance IA, les statistiques avancées, l’authentification et la base de données, peuvent être simulées ou en cours de développement.
+
+L’application ne remplace pas un outil professionnel certifié de gestion d’entreprise, de sécurité informatique ou de stockage confidentiel. L’utilisateur doit vérifier régulièrement ses données importantes et effectuer ses propres sauvegardes.
+
+L’utilisation de l’application implique l’acceptation des limites techniques actuelles du projet. Le développeur ne peut être tenu responsable d’une perte de données, d’une mauvaise utilisation ou d’une interruption temporaire du service.
+
+En cochant la case d’acceptation, l’utilisateur confirme avoir lu, compris et accepté les présentes conditions d’utilisation.
+                      </p>
+
+                      <div class="auth-modal__actions">
+                        <button
+                          class="auth-modal__close"
+                          type="button"
+                          data-auth-modal-close
+                        >
+                          Fermer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="auth-form__submit">
+                  <button id="authRegisterSubmit" type="submit">Créer un compte</button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="home-section auth-security" aria-labelledby="authSecurityTitle">
+        <div class="home-section__inner">
+          <h2 id="authSecurityTitle" class="auth-security__title">Bloc sécurité</h2>
+
+          <div class="auth-security__grid" role="list" aria-label="Informations de sécurité">
+            <article class="auth-security__item" role="listitem" aria-label="Données protégées">
+              <h3 class="auth-security__item-title">Données protégées</h3>
+              <p class="auth-security__item-text">
+                Vos informations sont traitées de manière sécurisée pour protéger votre espace.
+              </p>
+            </article>
+
+            <article class="auth-security__item" role="listitem" aria-label="Accès personnel">
+              <h3 class="auth-security__item-title">Accès personnel</h3>
+              <p class="auth-security__item-text">
+                Connectez-vous pour accéder à vos tâches, vos préférences et votre progression.
+              </p>
+            </article>
+
+            <article class="auth-security__item" role="listitem" aria-label="Synchronisation future">
+              <h3 class="auth-security__item-title">Synchronisation future</h3>
+              <p class="auth-security__item-text">
+                Synchronisez vos données sur plusieurs appareils lorsque la fonctionnalité sera disponible.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="home-footer" role="contentinfo" aria-label="Pied de page">
+      <div class="home-footer__inner">
+        <div class="home-footer__copyright">© 2026 Smart Task Manager. Tous droits réservés.</div>
+      </div>
+    </footer>
+  </body>
+</html>
+

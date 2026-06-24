@@ -226,8 +226,143 @@
   };
 
   // ==========================
+  // Protection d’accès (simple)
+  // ==========================
+
+  // Clé utilisée par l’énoncé
+  const AUTH_STATE_KEY = 'isLoggedIn';
+
+  const isUserLoggedIn = () => {
+    try {
+      return localStorage.getItem(AUTH_STATE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  };
+
+  const enforceAuthProtection = () => {
+    const currentFile = getCurrentPage();
+
+    // Pages accessibles sans connexion
+    const allowedPublicPages = new Set(['index.html', 'auth.html']);
+
+    // Pages protégées
+    // (Certaines sont listées comme ai.html, mais tu as aussi IA.html dans le projet)
+    const protectedPages = new Set(['tache.html', 'taches.html', 'tasks.html', 'analyses.html', 'ai.html', 'IA.html', 'focus.html']);
+
+    // Il peut arriver que le chemin corresponde à un nom sans extension selon ton HTML,
+    // mais ici on se limite volontairement aux noms demandés.
+    if (allowedPublicPages.has(currentFile)) return;
+
+    // Autoriser si page non listée
+    if (!protectedPages.has(currentFile)) return;
+
+    if (!isUserLoggedIn()) {
+      // Redirection automatique vers la page d’authentification
+      window.location.href = 'auth.html';
+    }
+  };
+
+  // ==========================
+  // Auth (header dynamique)
+  // ==========================
+
+
+  const initAuthHeader = () => {
+    const btn = document.querySelector('#authHeaderBtn');
+    if (!btn) return;
+
+    const isLoggedIn = (() => {
+      try {
+        const raw = localStorage.getItem(AUTH_STATE_KEY);
+        if (raw === null) return false;
+        if (raw === 'true') return true;
+        if (raw === 'false') return false;
+        // Support booléen sérialisé
+        return !!safeJSONParse(raw);
+      } catch {
+        return false;
+      }
+    })();
+
+    const update = () => {
+      // Bouton doit rester un lien pour ne pas casser le design
+      btn.setAttribute('href', isLoggedIn ? '#' : 'auth.html');
+
+      if (!isLoggedIn) {
+        btn.textContent = 'Connexion';
+        btn.setAttribute('aria-label', 'Connexion');
+        btn.removeAttribute('data-auth-action');
+      } else {
+        btn.textContent = 'Déconnexion';
+        btn.setAttribute('aria-label', 'Déconnexion');
+        btn.setAttribute('data-auth-action', 'logout');
+      }
+    };
+
+    update();
+
+    btn.addEventListener('click', (e) => {
+      const action = btn.getAttribute('data-auth-action');
+      if (action !== 'logout') return; // La connexion est gérée via href
+
+      e.preventDefault();
+      try {
+        localStorage.removeItem(AUTH_STATE_KEY);
+      } catch {
+        // ignore
+      }
+
+      // Rediriger vers la page d’accueil / index.html
+      window.location.href = 'index.html';
+    });
+  };
+
+  // ==========================
+  // Auth (connexion) — marquer “connecté”
+  // ==========================
+
+  // Important : le projet actuel n’a probablement pas un backend réel.
+  // On marque donc simplement l’utilisateur comme connecté dès qu’il soumet
+  // le formulaire de connexion/inscription, ce qui débloque l’accès protégé.
+  const initAuthSuccessStorage = () => {
+    const loginForm = document.querySelector('#authLoginForm');
+    const registerForm = document.querySelector('#authRegisterForm');
+
+    // Si l’utilisateur n’est pas sur auth.html, rien à faire.
+    if (!loginForm && !registerForm) return;
+
+    const markLoggedIn = () => {
+      try {
+        localStorage.setItem(AUTH_STATE_KEY, 'true');
+      } catch {
+        // ignore
+      }
+
+      // Mettre à jour le bouton d’en-tête si présent.
+      // (On relance l’init pour éviter de dépendre d’un event existant.)
+      initAuthHeader();
+    };
+
+    // Certains formulaires peuvent faire un submit réel (POST). Dans ce projet,
+    // on empêche surtout le rechargement brutal pour conserver le design/UX.
+    const preventAndMark = (form) => {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        markLoggedIn();
+        window.location.href = 'index.html';
+      });
+    };
+
+    if (loginForm) preventAndMark(loginForm);
+    if (registerForm) preventAndMark(registerForm);
+  };
+
+
+  // ==========================
   // Navigation (commun)
   // ==========================
+
 
   const initNavigation = () => {
     const navList = document.querySelector('.home-nav__list');
@@ -264,11 +399,283 @@
   // ==========================
 
   const initAccueil = () => {
-    // On ne fait ici que la navigation (évite animations lourdes qui risquent de casser).
-    // Cette page n’est pas dans ta liste de contraintes fonctionnelles.
+    // Navigation + espace publicitaire
     if (!document.querySelector('.home-main') || !document.querySelector('.home-nav__list')) return;
     initNavigation();
+
+    initAdsSpace();
   };
+
+  // ==========================
+  // Espace publicitaire (index.html)
+  // ==========================
+
+  // NOTE : Préparé pour migration plus tard depuis une base de données.
+
+  const ADS_STORAGE_KEY = 'smartTaskAds';
+
+  // “DataSource” : wrapper à remplacer quand on aura une DB.
+  const adsDataSource = {
+    loadAds: () => {
+      try {
+        const raw = localStorage.getItem(ADS_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = safeJSONParse(raw);
+        if (!Array.isArray(parsed)) return [];
+        // Format attendu : [{ id, dataUrl, addedAtISO }]
+        return parsed
+          .map((x) => {
+            if (!x || typeof x !== 'object') return null;
+            const id = String(x.id || '').trim();
+            const dataUrl = String(x.dataUrl || '').trim();
+            const addedAtISO = x.addedAtISO ? String(x.addedAtISO) : new Date().toISOString();
+            if (!id || !dataUrl) return null;
+            // On limite au minimum : les pubs doivent être des images
+            if (!/^data:image\//.test(dataUrl)) return null;
+            return { id, dataUrl, addedAtISO };
+          })
+          .filter(Boolean);
+      } catch {
+        return [];
+      }
+    },
+
+    saveAds: (ads) => {
+      // Ads doivent déjà être au bon format.
+      try {
+        localStorage.setItem(ADS_STORAGE_KEY, JSON.stringify(Array.isArray(ads) ? ads : []));
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  // Mode admin
+  const ADMIN_EMAIL = 'admin@smarttask.com';
+  const ADMIN_PASSWORD = 'Admin123';
+
+  const ADMIN_STATE_KEY = 'smartTaskAdmin'; // stocke { email, isAdmin }
+
+
+  const isAdmin = () => {
+    try {
+      const raw = localStorage.getItem(ADMIN_STATE_KEY);
+      if (!raw) return false;
+      const parsed = safeJSONParse(raw);
+      if (!parsed || typeof parsed !== 'object') return false;
+      if (parsed.isAdmin !== true) return false;
+      // Vérification “défensive” : email peut être présent.
+      if (String(parsed.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Tentative de lecture “admin” depuis des entrées éventuelles sur auth.html.
+  // Le projet ne possède pas encore de champ “admin” dans l’UI : on laisse une possibilité future.
+  const tryMarkAdminFromAuthFields = () => {
+    const page = getCurrentPage();
+    if (page !== 'auth.html') return;
+
+    const emailField = document.querySelector('#authEmail');
+    const passwordField = document.querySelector('#authPassword');
+    if (!emailField || !passwordField) return;
+
+    const email = String(emailField.value || '').trim();
+    const password = String(passwordField.value || '');
+
+    // Ne jamais afficher les identifiants admin dans l’interface.
+    if (
+      email.toLowerCase() === ADMIN_EMAIL.toLowerCase() &&
+      password === ADMIN_PASSWORD
+    ) {
+      try {
+        localStorage.setItem(
+          ADMIN_STATE_KEY,
+          JSON.stringify({ email: email, isAdmin: true, markedAtISO: new Date().toISOString() })
+        );
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const clearAdminStateOnLogout = () => {
+    try {
+      localStorage.removeItem(ADMIN_STATE_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
+  const initAdsSpace = () => {
+    const adsContainer = document.getElementById('adsContainer');
+    const addBtn = document.getElementById('addAdBtn');
+    const removeBtn = document.getElementById('removeAdBtn');
+    const emptyMessage = document.getElementById('emptyAdsMessage');
+    const fileInput = document.getElementById('adImageInput');
+
+    if (!adsContainer || !addBtn || !removeBtn || !emptyMessage || !fileInput) return;
+
+    // Pré-requis : l’utilisateur doit être connecté, sinon la page index.html
+    // ne devrait normalement pas afficher l’espace publicitaire (protection déjà gérée).
+
+
+    const updateAdminButtonsVisibility = () => {
+      const admin = isAdmin();
+
+      // Admin : affichage
+      addBtn.style.display = admin ? 'inline-flex' : 'none';
+      removeBtn.style.display = admin ? 'inline-flex' : 'none';
+      addBtn.setAttribute('aria-hidden', admin ? 'false' : 'true');
+      removeBtn.setAttribute('aria-hidden', admin ? 'false' : 'true');
+
+      // Utilisateur normal : on cache complètement le champ (pas seulement désactivé)
+      fileInput.style.display = admin ? 'block' : 'none';
+      fileInput.disabled = !admin;
+
+      return admin;
+    };
+
+    const render = () => {
+      const ads = adsDataSource.loadAds();
+
+      // Admin buttons + champ file
+      const adminNow = updateAdminButtonsVisibility();
+
+      // Utilisateur normal : aucune copie marketing (on gère uniquement slider / message vide demandé)
+      if (!adminNow) {
+        // Message vide : uniquement quand aucune pub
+        if (!ads.length) {
+          adsContainer.innerHTML = '';
+          emptyMessage.textContent = 'Aucune publicité pour le moment.';
+          emptyMessage.style.display = 'block';
+          return;
+        }
+
+        emptyMessage.style.display = 'none';
+      } else {
+        // Admin : message vide plus “neutre”
+        if (!ads.length) {
+          adsContainer.innerHTML = '';
+          emptyMessage.textContent = 'Aucune publicité disponible pour le moment.';
+          emptyMessage.style.display = 'block';
+          return;
+        }
+        emptyMessage.style.display = 'none';
+      }
+
+      // Créer “rail” en répétant 2 fois pour assurer le défilement continu.
+      const makeAdEl = (ad) => {
+        const item = document.createElement('div');
+        item.className = 'ad-item';
+        item.setAttribute('data-ad-id', ad.id);
+
+        const img = document.createElement('img');
+        img.src = ad.dataUrl;
+        img.alt = 'Publicité';
+        item.appendChild(img);
+        return item;
+      };
+
+      const rail = document.createElement('div');
+      rail.className = 'ads-rail';
+
+      // 2 répétitions
+      for (let i = 0; i < 2; i++) {
+        for (const ad of ads) rail.appendChild(makeAdEl(ad));
+      }
+
+      adsContainer.innerHTML = '';
+      adsContainer.appendChild(rail);
+    };
+
+    const promptAdd = () => {
+      // Ouvre le sélecteur image
+      try {
+        fileInput.click();
+      } catch {
+        // ignore
+      }
+    };
+
+    // Sécurité : si non-admin, on bloque aussi les boutons
+    if (!updateAdminButtonsVisibility()) {
+      removeBtn.disabled = true;
+      addBtn.disabled = true;
+    } else {
+      removeBtn.disabled = false;
+      addBtn.disabled = false;
+    }
+
+    addBtn.addEventListener('click', () => {
+      const admin = isAdmin();
+      if (!admin) return;
+      promptAdd();
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const admin = isAdmin();
+      if (!admin) return;
+
+      const f = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+      if (!f) return;
+
+      // Lecture en DataURL
+      const readAsDataURL = (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(new Error('read_error'));
+          reader.readAsDataURL(file);
+        });
+
+      try {
+        const dataUrl = await readAsDataURL(f);
+        if (!/^data:image\//.test(dataUrl)) return;
+
+        const ads = adsDataSource.loadAds();
+        const ad = {
+          id: getUID(),
+          dataUrl,
+          addedAtISO: new Date().toISOString()
+        };
+        ads.push(ad);
+        adsDataSource.saveAds(ads);
+        render();
+      } catch {
+        // ignore
+      } finally {
+        // Permet d’ajouter la même image à nouveau
+        fileInput.value = '';
+      }
+    });
+
+    removeBtn.addEventListener('click', () => {
+      const admin = isAdmin();
+      if (!admin) return;
+
+      const ads = adsDataSource.loadAds();
+      if (!ads.length) return;
+
+      // Stratégie simple : supprimer la dernière
+      const last = ads[ads.length - 1];
+      const ok = window.confirm('Supprimer la publicité la plus récente ?');
+      if (!ok) return;
+
+      const next = ads.filter((a) => a.id !== last.id);
+      adsDataSource.saveAds(next);
+      render();
+    });
+
+    // Premier rendu
+    render();
+
+    // Si admin change (déjà connecté/déconnexion), on relance.
+    window.addEventListener('storage', () => render());
+  };
+
 
   // ==========================
   // Tâches
@@ -1291,12 +1698,24 @@
   // ==========================
 
   const bootstrap = () => {
+    // Protection d’accès (simple via localStorage) avant toute initialisation
+    enforceAuthProtection();
+
+    // Bouton d’authentification dans l’en-tête (si présent)
+    initAuthHeader();
+
+    // Sur auth.html : marquer l’utilisateur comme connecté après soumission
+    initAuthSuccessStorage();
+
+
     // Navigation sur toutes les pages
     initNavigation();
+
 
     if (document.querySelector('.home-main') && document.querySelector('.home-nav__list')) {
       initAccueil();
     }
+
 
     // Tâches
     const hasTaskUI =
@@ -1319,9 +1738,134 @@
     const hasIAUI = !!document.querySelector('#aiInput') && !!document.querySelector('.ai-analyse__btn');
     if (hasIAUI) initIA();
 
+    // Auth tabs
+    const hasAuthUI = !!document.querySelector('#authLoginTab') && !!document.querySelector('#authRegisterTab');
+    if (hasAuthUI) initAuthTabs();
+
+    // Modal Conditions d’utilisation (auth only)
+    const hasTermsModal = !!document.querySelector('#authTermsModal') && !!document.querySelector('#authTermsLink');
+    if (hasTermsModal) initAuthTermsModal();
+
     // Focus
     const hasFocusUI = !!document.querySelector('.focus-main');
     if (hasFocusUI) initFocus();
+  };
+
+  // ==========================
+  // Auth (onglets Connexion / Inscription)
+  // ==========================
+
+  const initAuthTabs = () => {
+    const loginTab = document.querySelector('#authLoginTab');
+    const registerTab = document.querySelector('#authRegisterTab');
+    const loginForm = document.querySelector('#authLoginForm');
+    const registerForm = document.querySelector('#authRegisterForm');
+
+    if (!loginTab || !registerTab || !loginForm || !registerForm) return;
+
+    // On cache par défaut Inscription
+    const setActive = (mode) => {
+      const showLogin = mode === 'login';
+      const showRegister = mode === 'register';
+
+      const loginPanel = loginForm.closest('.auth-panel') || loginForm;
+      const registerPanel = registerForm.closest('.auth-panel') || registerForm;
+
+      // Tabs aria-selected
+      loginTab.setAttribute('aria-selected', showLogin ? 'true' : 'false');
+      registerTab.setAttribute('aria-selected', showRegister ? 'true' : 'false');
+
+      // Classes CSS demandées
+      if (showLogin) {
+        loginPanel.classList.remove('is-hidden');
+        loginPanel.classList.add('is-active');
+
+        registerPanel.classList.add('is-hidden');
+        registerPanel.classList.remove('is-active');
+      } else {
+        registerPanel.classList.remove('is-hidden');
+        registerPanel.classList.add('is-active');
+
+        loginPanel.classList.add('is-hidden');
+        loginPanel.classList.remove('is-active');
+      }
+
+      // Accessibilité : mettre à jour aria-hidden si présent
+      loginPanel.setAttribute('aria-hidden', showLogin ? 'false' : 'true');
+      registerPanel.setAttribute('aria-hidden', showRegister ? 'false' : 'true');
+    };
+
+    // Initialisation : uniquement Connexion par défaut
+    setActive('login');
+
+    // Gestion clics
+    loginTab.addEventListener('click', () => setActive('login'));
+    registerTab.addEventListener('click', () => setActive('register'));
+  };
+
+
+  const initAuthTermsModal = () => {
+    const modal = document.querySelector('#authTermsModal');
+    const linkBtn = document.querySelector('#authTermsLink');
+    const overlay = modal?.querySelector('[data-auth-modal-overlay]') || null;
+    const closeBtn = modal?.querySelector('[data-auth-modal-close]') || null;
+
+    if (!modal || !linkBtn) return;
+
+    const openModal = () => {
+      // Mémoriser le focus pour restauration
+      if (!modal.__previousFocusEl) modal.__previousFocusEl = document.activeElement;
+
+      modal.classList.add('auth-modal--open');
+      modal.setAttribute('aria-hidden', 'false');
+
+      // Mettre le focus sur le bouton Fermer
+      try {
+        closeBtn?.focus?.();
+      } catch {
+        // ignore
+      }
+    };
+
+    const closeModal = () => {
+      modal.classList.remove('auth-modal--open');
+      modal.setAttribute('aria-hidden', 'true');
+
+      // Restaurer le focus
+      const prev = modal.__previousFocusEl;
+      modal.__previousFocusEl = null;
+      try {
+        if (prev && typeof prev.focus === 'function') prev.focus();
+      } catch {
+        // ignore
+      }
+    };
+
+    // Ouvrir via clic sur le lien dans le label
+    linkBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openModal();
+    });
+
+    // Fermer via bouton
+    closeBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
+    });
+
+    // Fermer via overlay
+    overlay?.addEventListener('click', () => {
+      closeModal();
+    });
+
+    // Clavier: Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const isOpen = modal.classList.contains('auth-modal--open');
+      if (isOpen) closeModal();
+    });
   };
 
   if (document.readyState === 'loading') {
@@ -1330,4 +1874,5 @@
     bootstrap();
   }
 })();
+
 
