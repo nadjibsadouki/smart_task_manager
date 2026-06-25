@@ -403,7 +403,7 @@
     if (!document.querySelector('.home-main') || !document.querySelector('.home-nav__list')) return;
     initNavigation();
 
-    initAdsSpace();
+
   };
 
   // ==========================
@@ -451,29 +451,15 @@
   };
 
   // Mode admin
-  const ADMIN_EMAIL = 'admin@smarttask.com';
-  const ADMIN_PASSWORD = 'Admin123';
+  // Pour cet exercice : la publicité admin est totalement désactivée par défaut.
+  // (Ne pas casser le reste du code de l’application.)
+  const isAdmin = false;
 
-  const ADMIN_STATE_KEY = 'smartTaskAdmin'; // stocke { email, isAdmin }
-
-
-  const isAdmin = () => {
-    try {
-      const raw = localStorage.getItem(ADMIN_STATE_KEY);
-      if (!raw) return false;
-      const parsed = safeJSONParse(raw);
-      if (!parsed || typeof parsed !== 'object') return false;
-      if (parsed.isAdmin !== true) return false;
-      // Vérification “défensive” : email peut être présent.
-      if (String(parsed.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return false;
-      return true;
-    } catch {
-      return false;
-    }
-  };
 
   // Tentative de lecture “admin” depuis des entrées éventuelles sur auth.html.
   // Le projet ne possède pas encore de champ “admin” dans l’UI : on laisse une possibilité future.
+  // Cette fonction est conservée pour ne pas casser le code existant,
+  // mais elle n’aura aucun effet tant que isAdmin = false.
   const tryMarkAdminFromAuthFields = () => {
     const page = getCurrentPage();
     if (page !== 'auth.html') return;
@@ -509,172 +495,7 @@
     }
   };
 
-  const initAdsSpace = () => {
-    const adsContainer = document.getElementById('adsContainer');
-    const addBtn = document.getElementById('addAdBtn');
-    const removeBtn = document.getElementById('removeAdBtn');
-    const emptyMessage = document.getElementById('emptyAdsMessage');
-    const fileInput = document.getElementById('adImageInput');
 
-    if (!adsContainer || !addBtn || !removeBtn || !emptyMessage || !fileInput) return;
-
-    // Pré-requis : l’utilisateur doit être connecté, sinon la page index.html
-    // ne devrait normalement pas afficher l’espace publicitaire (protection déjà gérée).
-
-
-    const updateAdminButtonsVisibility = () => {
-      const admin = isAdmin();
-
-      // Admin : affichage
-      addBtn.style.display = admin ? 'inline-flex' : 'none';
-      removeBtn.style.display = admin ? 'inline-flex' : 'none';
-      addBtn.setAttribute('aria-hidden', admin ? 'false' : 'true');
-      removeBtn.setAttribute('aria-hidden', admin ? 'false' : 'true');
-
-      // Utilisateur normal : on cache complètement le champ (pas seulement désactivé)
-      fileInput.style.display = admin ? 'block' : 'none';
-      fileInput.disabled = !admin;
-
-      return admin;
-    };
-
-    const render = () => {
-      const ads = adsDataSource.loadAds();
-
-      // Admin buttons + champ file
-      const adminNow = updateAdminButtonsVisibility();
-
-      // Utilisateur normal : aucune copie marketing (on gère uniquement slider / message vide demandé)
-      if (!adminNow) {
-        // Message vide : uniquement quand aucune pub
-        if (!ads.length) {
-          adsContainer.innerHTML = '';
-          emptyMessage.textContent = 'Aucune publicité pour le moment.';
-          emptyMessage.style.display = 'block';
-          return;
-        }
-
-        emptyMessage.style.display = 'none';
-      } else {
-        // Admin : message vide plus “neutre”
-        if (!ads.length) {
-          adsContainer.innerHTML = '';
-          emptyMessage.textContent = 'Aucune publicité disponible pour le moment.';
-          emptyMessage.style.display = 'block';
-          return;
-        }
-        emptyMessage.style.display = 'none';
-      }
-
-      // Créer “rail” en répétant 2 fois pour assurer le défilement continu.
-      const makeAdEl = (ad) => {
-        const item = document.createElement('div');
-        item.className = 'ad-item';
-        item.setAttribute('data-ad-id', ad.id);
-
-        const img = document.createElement('img');
-        img.src = ad.dataUrl;
-        img.alt = 'Publicité';
-        item.appendChild(img);
-        return item;
-      };
-
-      const rail = document.createElement('div');
-      rail.className = 'ads-rail';
-
-      // 2 répétitions
-      for (let i = 0; i < 2; i++) {
-        for (const ad of ads) rail.appendChild(makeAdEl(ad));
-      }
-
-      adsContainer.innerHTML = '';
-      adsContainer.appendChild(rail);
-    };
-
-    const promptAdd = () => {
-      // Ouvre le sélecteur image
-      try {
-        fileInput.click();
-      } catch {
-        // ignore
-      }
-    };
-
-    // Sécurité : si non-admin, on bloque aussi les boutons
-    if (!updateAdminButtonsVisibility()) {
-      removeBtn.disabled = true;
-      addBtn.disabled = true;
-    } else {
-      removeBtn.disabled = false;
-      addBtn.disabled = false;
-    }
-
-    addBtn.addEventListener('click', () => {
-      const admin = isAdmin();
-      if (!admin) return;
-      promptAdd();
-    });
-
-    fileInput.addEventListener('change', async () => {
-      const admin = isAdmin();
-      if (!admin) return;
-
-      const f = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
-      if (!f) return;
-
-      // Lecture en DataURL
-      const readAsDataURL = (file) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result || ''));
-          reader.onerror = () => reject(new Error('read_error'));
-          reader.readAsDataURL(file);
-        });
-
-      try {
-        const dataUrl = await readAsDataURL(f);
-        if (!/^data:image\//.test(dataUrl)) return;
-
-        const ads = adsDataSource.loadAds();
-        const ad = {
-          id: getUID(),
-          dataUrl,
-          addedAtISO: new Date().toISOString()
-        };
-        ads.push(ad);
-        adsDataSource.saveAds(ads);
-        render();
-      } catch {
-        // ignore
-      } finally {
-        // Permet d’ajouter la même image à nouveau
-        fileInput.value = '';
-      }
-    });
-
-    removeBtn.addEventListener('click', () => {
-      const admin = isAdmin();
-      if (!admin) return;
-
-      const ads = adsDataSource.loadAds();
-      if (!ads.length) return;
-
-      // Stratégie simple : supprimer la dernière
-      const last = ads[ads.length - 1];
-      const ok = window.confirm('Supprimer la publicité la plus récente ?');
-      if (!ok) return;
-
-      const next = ads.filter((a) => a.id !== last.id);
-      adsDataSource.saveAds(next);
-      render();
-    });
-
-    // Premier rendu
-    render();
-
-    // Si admin change (déjà connecté/déconnexion), on relance.
-    window.addEventListener('storage', () => render());
-  };
 
 
   // ==========================
