@@ -29,7 +29,7 @@
             <li><a href="tache.html" aria-label="Accès à Tâches">Tâches</a></li>
             <li><a href="IA.html" aria-label="Accès à IA">IA</a></li>
             <li><a href="analyses.html" aria-label="Accès à Analyses">Analyses</a></li>
-<li><a href="focus.html" aria-label="Accès à Focus" aria-current="page">Focus</a></li>
+            <li><a href="focus.html" aria-label="Accès à Focus" aria-current="page">Focus</a></li>
           </ul>
         </nav>
 
@@ -55,26 +55,52 @@
               <span>Durée de session :</span>
               <span aria-label="Durée de session">25 min</span>
             </p>
+
+            <div class="focus-duration-field" aria-label="Durée de session personnalisée">
+              <label for="focusDurationInput">Durée de session</label>
+              <input
+                id="focusDurationInput"
+                type="number"
+                min="1"
+                max="180"
+                value="25"
+                inputmode="numeric"
+              />
+            </div>
+
             <p>
               <span>Temps restant :</span>
-              <span aria-label="Temps restant">12 min 00 s</span>
+              <span id="focusTimer" aria-label="Temps restant">25:00</span>
             </p>
+
+            <div class="focus-session__controls" aria-label="Contrôles du minuteur">
+              <button id="focusStartBtn" type="button">Démarrer</button>
+              <button id="focusPauseBtn" type="button">Pause</button>
+              <button id="focusResetBtn" type="button">Réinitialiser</button>
+              <button id="focusFinishBtn" type="button">Terminer la session</button>
+            </div>
           </div>
         </section>
 
         <section class="focus-task" aria-labelledby="focusTaskTitle">
           <h2 id="focusTaskTitle">Tâche principale</h2>
 
+          <div aria-label="Choisir une tâche">
+            <h3>Choisir une tâche</h3>
+            <ul id="focusTaskList" aria-label="Liste des tâches disponibles"></ul>
+            <p id="focusMessage" role="status" aria-live="polite"></p>
+          </div>
+
           <div aria-label="Carte de la tâche sélectionnée">
             <figure>
-              <figcaption>Carte de la tâche actuellement sélectionnée</figcaption>
-              <div role="img" aria-label="Carte (aperçu) de la tâche">« Prioriser le planning »</div>
+              <figcaption>Tâche en cours</figcaption>
+              <div id="focusCurrentTask" role="img" aria-label="Carte (aperçu) de la tâche">Aucune tâche sélectionnée</div>
             </figure>
           </div>
 
           <div aria-label="Informations sur la tâche">
-            <p><strong>Priorité :</strong> Haute</p>
-            <p><strong>Date limite :</strong> 2026-06-28</p>
+            <p><strong>Priorité :</strong> <span id="focusCurrentPriority">—</span></p>
+            <p><strong>Date limite :</strong> <span id="focusCurrentDue">—</span></p>
           </div>
         </section>
 
@@ -92,13 +118,13 @@
 
           <ul aria-label="Indicateurs de performance">
             <li>
-              <strong>Temps de focus aujourd'hui :</strong> 50 min
+              <strong>Temps de focus aujourd'hui :</strong> <span id="focusTodayTime">0:00</span>
             </li>
             <li>
-              <strong>Sessions terminées :</strong> 2
+              <strong>Sessions terminées :</strong> <span id="focusSessionsCount">0</span>
             </li>
             <li>
-              <strong>Série de jours productifs :</strong> 5
+              <strong>Tâches terminées pendant les sessions focus :</strong> <span id="focusCompletedCount">0</span>
             </li>
           </ul>
         </section>

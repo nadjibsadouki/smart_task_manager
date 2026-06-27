@@ -550,6 +550,11 @@ h1#homeHeroTitle{
   background: linear-gradient(180deg, rgba(7,10,20,0.00), rgba(7,10,20,0.55));
 }
 
+.home-footer__inner{
+  display: flex;
+  justify-content: center;
+}
+
 /* =========================
    HOME AD SPACE (supprimé)
 ========================= */
@@ -559,6 +564,7 @@ h1#homeHeroTitle{
   color: var(--text-68);
   font-weight: 650;
   font-size: 13px;
+  text-align: center;
 }
 
 /* =========================
@@ -719,6 +725,39 @@ main[aria-label="Gestion des tâches"] select:focus{
 main[aria-label="Gestion des tâches"] option[value="low"]{ background:#0b1438; color:#bcd6ff; }
 main[aria-label="Gestion des tâches"] option[value="medium"]{ background:#1a0f3c; color:#dcc6ff; }
 main[aria-label="Gestion des tâches"] option[value="high"]{ background:#221013; color:#ffd1d1; }
+
+/* =========================
+   Catégorie (select + menu déroulant)
+   Objectif : lisible sur Chrome / Edge / Firefox en thème sombre
+   Ne modifie pas le style du select fermé (déjà défini plus haut)
+   ========================= */
+
+main[aria-label="Gestion des tâches"] select#categoryInput,
+main[aria-label="Gestion des tâches"] select[name="category"]{
+  color-scheme: dark;
+}
+
+/* Texte/fond des options : force un rendu sombre + texte clair */
+main[aria-label="Gestion des tâches"] select#categoryInput option,
+main[aria-label="Gestion des tâches"] select[name="category"] option{
+  background: #0a0f24 !important;
+  color: rgba(234,240,255,.98) !important;
+}
+
+/* Survol : accent cyan/bleu (quand supporté) */
+main[aria-label="Gestion des tâches"] select#categoryInput option:hover,
+main[aria-label="Gestion des tâches"] select[name="category"] option:hover{
+  background: rgba(34,211,238,.22) !important;
+  color: rgba(234,240,255,.98) !important;
+}
+
+/* Sélection : on garde le texte clair + accent léger */
+main[aria-label="Gestion des tâches"] select#categoryInput option:checked,
+main[aria-label="Gestion des tâches"] select[name="category"] option:checked{
+  background: rgba(34,211,238,.28) !important;
+  color: rgba(234,240,255,.98) !important;
+}
+
 
 /* 5b) Actions */
 .form-actions{
@@ -1425,6 +1464,38 @@ main[aria-label="Analyses et indicateurs"] .analyses-history__table tbody tr:las
   font-weight: 950;
 }
 
+.focus-duration-field{
+  display: grid;
+  gap: 8px;
+  max-width: 240px;
+}
+
+.focus-duration-field label{
+  color: rgba(234,240,255,.86);
+  font-size: 12.8px;
+  font-weight: 900;
+}
+
+.focus-duration-field input[type="number"]{
+  width: 100%;
+  height: 42px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background:
+    radial-gradient(120% 140% at 20% 0%, rgba(34,211,238,.12), transparent 50%),
+    rgba(255,255,255,.03);
+  color: rgba(234,240,255,.98);
+  font: inherit;
+  font-weight: 850;
+}
+
+.focus-duration-field input[type="number"]:focus{
+  border-color: rgba(34,211,238,.40);
+  box-shadow: var(--focus);
+  outline: none;
+}
+
 /* Quand “Temps restant” est dans un span aria-label=Temps restant */
 .focus-session span[aria-label="Temps restant"]{
   font-size: clamp(34px, 4.5vw, 56px);
@@ -1449,6 +1520,22 @@ main[aria-label="Analyses et indicateurs"] .analyses-history__table tbody tr:las
 }
 
 /* Tâche principale */
+#focusTimer{
+  color: rgba(234,240,255,.98) !important;
+  -webkit-text-fill-color: rgba(234,240,255,.98);
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  opacity: 1;
+  visibility: visible;
+  display: inline-block;
+  text-indent: 0;
+  font-size: clamp(34px, 4.5vw, 56px);
+  filter: none;
+  mix-blend-mode: normal;
+  position: relative;
+  z-index: 1;
+}
+
 .focus-task figure{
   margin: 0;
   padding: 0;
@@ -1639,6 +1726,131 @@ main[aria-label="Analyses et indicateurs"] .analyses-history__table tbody tr:las
 
 @media (prefers-reduced-motion: reduce){
   .focus-tips article{ transition: none !important; }
+}
+
+/* =========================
+   FOCUS: Task cards (liste -> cartes)
+   Styles scopeés via focus-*
+========================= */
+
+/* Liste des tâches */
+.focus-task [aria-label="Choisir une tâche"]{
+  margin-top: 6px;
+}
+
+#focusTaskList{
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 6px;
+  display: grid;
+  gap: 10px;
+}
+
+/* Chaque tâche */
+li.focus-task-item{
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+
+  background:
+    radial-gradient(700px 220px at 15% 0%, rgba(34,211,238,.12), transparent 55%),
+    radial-gradient(500px 220px at 95% 0%, rgba(168,85,247,.10), transparent 50%),
+    rgba(255,255,255,.02);
+
+  border: 1px solid rgba(255,255,255,.10);
+
+  box-shadow: 0 10px 30px rgba(0,0,0,.14);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
+
+  color: rgba(234,240,255,.92);
+  font-weight: 900;
+  letter-spacing: -0.15px;
+  cursor: pointer;
+
+  user-select: none;
+}
+
+/* Prévient le display de bullets / style par défaut */
+li.focus-task-item:before{
+  content: none;
+}
+
+/* Texte de la tâche */
+li.focus-task-item{
+  text-align: left;
+}
+
+/* Hover */
+li.focus-task-item:hover{
+  transform: translateY(-2px);
+  border-color: rgba(34,211,238,.50);
+  background:
+    radial-gradient(700px 220px at 15% 0%, rgba(34,211,238,.18), transparent 58%),
+    radial-gradient(500px 220px at 95% 0%, rgba(168,85,247,.14), transparent 52%),
+    rgba(255,255,255,.03);
+  box-shadow:
+    0 0 0 1px rgba(34,211,238,.14),
+    0 18px 60px rgba(0,0,0,.22),
+    0 0 24px rgba(34,211,238,.10);
+}
+
+/* Focus clavier */
+li.focus-task-item:focus-visible{
+  box-shadow: var(--focus);
+}
+
+/* Badge sélectionnée */
+li.focus-task-item .focus-selected-badge{
+  display: none;
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 10px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(34,211,238,.35);
+  background:
+    radial-gradient(140% 120% at 15% 0%, rgba(34,211,238,.26), transparent 55%),
+    rgba(255,255,255,.03);
+
+  color: rgba(200,250,255,.96);
+  font-size: 12.3px;
+  font-weight: 950;
+}
+
+/* État sélectionné */
+li.focus-task-item.is-selected{
+  border-color: rgba(34,211,238,.85);
+  background:
+    radial-gradient(700px 220px at 15% 0%, rgba(34,211,238,.22), transparent 58%),
+    radial-gradient(500px 220px at 95% 0%, rgba(168,85,247,.18), transparent 52%),
+    rgba(255,255,255,.04);
+
+  box-shadow:
+    0 0 0 1px rgba(34,211,238,.20),
+    0 22px 70px rgba(0,0,0,.26),
+    0 0 34px rgba(168,85,247,.12),
+    0 0 22px rgba(34,211,238,.14);
+}
+
+li.focus-task-item.is-selected .focus-selected-badge{
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce){
+  li.focus-task-item{ transition: none !important; }
+  li.focus-task-item:hover{ transform: none !important; }
 }
 
 /* =========================
@@ -2592,7 +2804,4 @@ main[aria-label="Analyses et indicateurs"] .analyses-history__table tbody tr:las
   .auth-modal__panel{ padding: 14px; }
   .auth-modal__title{ font-size: 20px; }
 }
-
-
-
 

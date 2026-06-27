@@ -101,7 +101,20 @@
                     <input id="dateInput" name="dueDate" type="date" required />
                   </div>
 
+                  <div class="form-field">
+                    <label for="categoryInput">Catégorie</label>
+                    <select id="categoryInput" name="category" required aria-label="Choisir une catégorie">
+                      <option value="Travail">Travail</option>
+                      <option value="Études">Études</option>
+                      <option value="Personnel">Personnel</option>
+                      <option value="Santé">Santé</option>
+                      <option value="Urgent">Urgent</option>
+                      <option value="Autre">Autre</option>
+                    </select>
+                  </div>
+
                   <div class="form-actions" role="group" aria-label="Actions du formulaire">
+
                     <button id="addTaskBtn" type="submit">Ajouter une tâche</button>
                     <button id="clearCompletedBtn" type="button">Effacer terminées</button>
                   </div>

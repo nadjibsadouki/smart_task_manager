@@ -1,27 +1,15 @@
 (() => {
   'use strict';
 
-  /**
-   * Smart Task Manager — script.js
-   * 
-   * Contraintes respectées :
-   * - Vanilla JavaScript
-   * - Aucun changement HTML/CSS
-   * - Ne casse pas les pages index.html, tache.html, analyses.html, ai.html/IA.html, focus.html
-   * - Vérifie l’existence des éléments avant toute action
-   * - Tout le code et les commentaires en français
-   * - Stockage unique : localStorage.smartTasks
-   * - Migration depuis clés legacy si nécessaire
-   */
-
   // ==========================
-  // Constantes stockage
+  // Constantes
   // ==========================
   const STORAGE_KEY = 'smartTasks';
   const LEGACY_KEYS = ['tasks', 'taskList', 'stm_tasks_v1'];
+  const AUTH_STATE_KEY = 'isLoggedIn';
 
   // ==========================
-  // Utilitaires
+  // Utilitaires (robustes)
   // ==========================
 
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -34,6 +22,21 @@
     }
   };
 
+  const normalizeHrefToFile = (href) => {
+    if (!href) return '';
+    try {
+      const url = new URL(href, window.location.origin);
+      return url.pathname.split('/').filter(Boolean).pop() || '';
+    } catch {
+      return href;
+    }
+  };
+
+  const getCurrentPage = () => {
+    const path = window.location.pathname || '';
+    return path.split('/').filter(Boolean).pop() || '';
+  };
+
   const getTodayISODateLocal = () => {
     const d = new Date();
     const y = d.getFullYear();
@@ -42,6 +45,7 @@
     return `${y}-${m}-${day}`;
   };
 
+  // Conversion iso (YYYY-MM-DD) -> Date “date-only” sans heure, basée sur UTC midnight.
   const isoDateToUTCDate = (iso) => {
     const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!m) return null;
@@ -53,44 +57,36 @@
     return Number.isFinite(dt.getTime()) ? dt : null;
   };
 
-  const getCurrentPage = () => {
-    const path = window.location.pathname || '';
-    return path.split('/').filter(Boolean).pop() || '';
+  const isDueDateBeforeToday = (dueDateISO) => {
+    const todayISO = getTodayISODateLocal();
+    const todayDt = isoDateToUTCDate(todayISO);
+    const dueDt = isoDateToUTCDate(dueDateISO);
+    if (!todayDt || !dueDt) return false;
+    return dueDt.getTime() < todayDt.getTime();
   };
 
-  const normalizeHrefToFile = (href) => {
-    if (!href) return '';
+  const formatDueDateFR = (iso) => {
+    const dt = isoDateToUTCDate(iso);
+    if (!dt) return String(iso || '');
     try {
-      const url = new URL(href, window.location.origin);
-      return url.pathname.split('/').filter(Boolean).pop() || '';
+      return new Intl.DateTimeFormat('fr-FR').format(dt);
     } catch {
-      return href;
+      return String(iso || '');
     }
   };
 
   const getUID = () => `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
   // ==========================
-  // Normalisation + stockage
+  // Modèle de tâche
   // ==========================
-
-  /**
-   * Tâche interne unifiée :
-   * {
-   *   id: string,
-   *   title: string,
-   *   priority: 'low'|'medium'|'high',
-   *   dueDateISO: 'YYYY-MM-DD',
-   *   status: 'todo'|'done',
-   *   createdAtISO: string
-   * }
-   */
   const normalizeTask = (t) => {
     if (!t || typeof t !== 'object') return null;
 
-    const id = t.id ?? t._id ?? '';
-    const title = t.title ?? t.name ?? t.taskTitle ?? '';
-    const priority = t.priority;
+    const idRaw = t.id ?? t._id ?? '';
+    const titleRaw = t.title ?? t.name ?? t.taskTitle ?? '';
+    const priorityRaw = t.priority;
+    const categoryRaw = t.category;
 
     const statusRaw = t.status ?? t.state ?? '';
     const status =
@@ -101,20 +97,23 @@
     const dueDateISO = t.dueDateISO ?? t.dueDate ?? t.date ?? t.due_date;
     const createdAtISO = t.createdAtISO ?? t.createdAt ?? t.created_at ?? '';
 
-    const idStr = String(id || '').trim();
-    const titleStr = String(title || '').trim();
+    const id = String(idRaw || '').trim();
+    const title = String(titleRaw || '').trim();
+    const priority = priorityRaw;
 
-    if (!idStr || !titleStr) return null;
+    if (!id || !title) return null;
     if (!['low', 'medium', 'high'].includes(priority)) return null;
 
-    if (!dueDateISO) return null;
-    const dueStr = String(dueDateISO);
+    const dueStr = String(dueDateISO || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dueStr)) return null;
 
+    const category = String(categoryRaw || '').trim();
+
     return {
-      id: idStr,
-      title: titleStr,
+      id,
+      title,
       priority,
+      category: category || 'Non classée',
       dueDateISO: dueStr,
       status,
       createdAtISO: createdAtISO ? String(createdAtISO) : new Date().toISOString()
@@ -123,248 +122,64 @@
 
   const loadTasks = () => {
     const tryGet = (key) => {
-      const raw = localStorage.getItem(key);
-      if (!raw) return null;
-      return safeJSONParse(raw);
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        return safeJSONParse(raw);
+      } catch {
+        return null;
+      }
     };
 
-    // 1) Clé moderne
-    try {
-      const raw = tryGet(STORAGE_KEY);
-      if (raw) {
-        const arr = Array.isArray(raw)
-          ? raw
-          : Array.isArray(raw.tasks)
-            ? raw.tasks
-            : Array.isArray(raw.taskList)
-              ? raw.taskList
-              : null;
-        if (Array.isArray(arr)) {
-          const normalized = arr.map(normalizeTask).filter(Boolean);
-          return normalized;
-        }
+    const parsedModern = tryGet(STORAGE_KEY);
+    if (parsedModern) {
+      const arr = Array.isArray(parsedModern)
+        ? parsedModern
+        : Array.isArray(parsedModern.tasks)
+          ? parsedModern.tasks
+          : Array.isArray(parsedModern.taskList)
+            ? parsedModern.taskList
+            : null;
+
+      if (Array.isArray(arr)) {
+        return arr.map(normalizeTask).filter(Boolean);
       }
-    } catch {
-      // Ignore si localStorage est inaccessible
     }
 
-    // 2) Migration depuis legacy
     for (const key of LEGACY_KEYS) {
+      const parsed = tryGet(key);
+      if (!parsed) continue;
+
+      const arr = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed.tasks)
+          ? parsed.tasks
+          : Array.isArray(parsed.taskList)
+            ? parsed.taskList
+            : null;
+
+      if (!Array.isArray(arr)) continue;
+
+      const normalized = arr.map(normalizeTask).filter(Boolean);
       try {
-        const raw = tryGet(key);
-        if (!raw) continue;
-        const arr = Array.isArray(raw)
-          ? raw
-          : Array.isArray(raw.tasks)
-            ? raw.tasks
-            : Array.isArray(raw.taskList)
-              ? raw.taskList
-              : null;
-
-        if (!Array.isArray(arr)) continue;
-
-        const normalized = arr.map(normalizeTask).filter(Boolean);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-        } catch {
-          // Si écriture impossible, on continue et on retourne quand même
-        }
-        return normalized;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       } catch {
-        // continuer
+        // ignore
       }
-    }
-
-    // 3) Fallback : chercher un tableau JSON dans localStorage
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key) continue;
-        const raw = localStorage.getItem(key);
-        if (!raw) continue;
-        const parsed = safeJSONParse(raw);
-        const maybeArray =
-          Array.isArray(parsed) ? parsed : Array.isArray(parsed?.tasks) ? parsed.tasks : null;
-        if (!Array.isArray(maybeArray)) continue;
-
-        const normalized = maybeArray.map(normalizeTask).filter(Boolean);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-        } catch {
-          // ignore
-        }
-        return normalized;
-      }
-    } catch {
-      // ignore
+      return normalized;
     }
 
     return [];
   };
 
   const saveTasks = (tasks) => {
-    // Ici on suppose que les tâches sont déjà normalisées.
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   };
 
-  const priorityToFR = (p) => {
-    if (p === 'high') return 'Haute';
-    if (p === 'medium') return 'Moyenne';
-    return 'Faible';
-  };
-
-  const statusFR = (s) => (s === 'done' ? 'Terminée' : 'À faire');
-
-  const formatDueDateFR = (iso) => {
-    const dt = isoDateToUTCDate(iso);
-    if (!dt) return String(iso);
-    try {
-      return new Intl.DateTimeFormat('fr-FR').format(dt);
-    } catch {
-      return String(iso);
-    }
-  };
-
   // ==========================
-  // Protection d’accès (simple)
+  // Navigation (header)
   // ==========================
-
-  // Clé utilisée par l’énoncé
-  const AUTH_STATE_KEY = 'isLoggedIn';
-
-  const isUserLoggedIn = () => {
-    try {
-      return localStorage.getItem(AUTH_STATE_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  };
-
-  const enforceAuthProtection = () => {
-    const currentFile = getCurrentPage();
-
-    // Pages accessibles sans connexion
-    const allowedPublicPages = new Set(['index.html', 'auth.html']);
-
-    // Pages protégées
-    // (Certaines sont listées comme ai.html, mais tu as aussi IA.html dans le projet)
-    const protectedPages = new Set(['tache.html', 'taches.html', 'tasks.html', 'analyses.html', 'ai.html', 'IA.html', 'focus.html']);
-
-    // Il peut arriver que le chemin corresponde à un nom sans extension selon ton HTML,
-    // mais ici on se limite volontairement aux noms demandés.
-    if (allowedPublicPages.has(currentFile)) return;
-
-    // Autoriser si page non listée
-    if (!protectedPages.has(currentFile)) return;
-
-    if (!isUserLoggedIn()) {
-      // Redirection automatique vers la page d’authentification
-      window.location.href = 'auth.html';
-    }
-  };
-
-  // ==========================
-  // Auth (header dynamique)
-  // ==========================
-
-
-  const initAuthHeader = () => {
-    const btn = document.querySelector('#authHeaderBtn');
-    if (!btn) return;
-
-    const isLoggedIn = (() => {
-      try {
-        const raw = localStorage.getItem(AUTH_STATE_KEY);
-        if (raw === null) return false;
-        if (raw === 'true') return true;
-        if (raw === 'false') return false;
-        // Support booléen sérialisé
-        return !!safeJSONParse(raw);
-      } catch {
-        return false;
-      }
-    })();
-
-    const update = () => {
-      // Bouton doit rester un lien pour ne pas casser le design
-      btn.setAttribute('href', isLoggedIn ? '#' : 'auth.html');
-
-      if (!isLoggedIn) {
-        btn.textContent = 'Connexion';
-        btn.setAttribute('aria-label', 'Connexion');
-        btn.removeAttribute('data-auth-action');
-      } else {
-        btn.textContent = 'Déconnexion';
-        btn.setAttribute('aria-label', 'Déconnexion');
-        btn.setAttribute('data-auth-action', 'logout');
-      }
-    };
-
-    update();
-
-    btn.addEventListener('click', (e) => {
-      const action = btn.getAttribute('data-auth-action');
-      if (action !== 'logout') return; // La connexion est gérée via href
-
-      e.preventDefault();
-      try {
-        localStorage.removeItem(AUTH_STATE_KEY);
-      } catch {
-        // ignore
-      }
-
-      // Rediriger vers la page d’accueil / index.html
-      window.location.href = 'index.html';
-    });
-  };
-
-  // ==========================
-  // Auth (connexion) — marquer “connecté”
-  // ==========================
-
-  // Important : le projet actuel n’a probablement pas un backend réel.
-  // On marque donc simplement l’utilisateur comme connecté dès qu’il soumet
-  // le formulaire de connexion/inscription, ce qui débloque l’accès protégé.
-  const initAuthSuccessStorage = () => {
-    const loginForm = document.querySelector('#authLoginForm');
-    const registerForm = document.querySelector('#authRegisterForm');
-
-    // Si l’utilisateur n’est pas sur auth.html, rien à faire.
-    if (!loginForm && !registerForm) return;
-
-    const markLoggedIn = () => {
-      try {
-        localStorage.setItem(AUTH_STATE_KEY, 'true');
-      } catch {
-        // ignore
-      }
-
-      // Mettre à jour le bouton d’en-tête si présent.
-      // (On relance l’init pour éviter de dépendre d’un event existant.)
-      initAuthHeader();
-    };
-
-    // Certains formulaires peuvent faire un submit réel (POST). Dans ce projet,
-    // on empêche surtout le rechargement brutal pour conserver le design/UX.
-    const preventAndMark = (form) => {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        markLoggedIn();
-        window.location.href = 'index.html';
-      });
-    };
-
-    if (loginForm) preventAndMark(loginForm);
-    if (registerForm) preventAndMark(registerForm);
-  };
-
-
-  // ==========================
-  // Navigation (commun)
-  // ==========================
-
-
-  const initNavigation = () => {
+  function initNavigation() {
     const navList = document.querySelector('.home-nav__list');
     if (!navList) return;
 
@@ -377,519 +192,423 @@
     });
 
     let matched = false;
-    links.forEach((a) => {
+    for (const a of links) {
       const hrefFile = normalizeHrefToFile(a.getAttribute('href'));
       if (hrefFile && hrefFile === currentFile) {
         a.setAttribute('aria-current', 'page');
         matched = true;
       }
-    });
+    }
 
-    // fallback : index.html
     if (!matched && currentFile === 'index.html') {
-      links.forEach((a) => {
+      for (const a of links) {
         const hrefFile = normalizeHrefToFile(a.getAttribute('href'));
-        if (!hrefFile || hrefFile === 'index.html') a.setAttribute('aria-current', 'page');
+        if (!hrefFile || hrefFile === 'index.html') {
+          a.setAttribute('aria-current', 'page');
+        }
+      }
+    }
+  }
+
+  // ==========================
+  // Auth (simulation)
+  // ==========================
+  function initAuth() {
+    const headerBtn = document.querySelector('#authHeaderBtn');
+    if (headerBtn) {
+      const isLoggedIn = (() => {
+        try {
+          return localStorage.getItem(AUTH_STATE_KEY) === 'true';
+        } catch {
+          return false;
+        }
+      })();
+
+      const syncHeader = () => {
+        if (isLoggedIn) {
+          headerBtn.textContent = 'Déconnexion';
+          headerBtn.setAttribute('aria-label', 'Déconnexion');
+          headerBtn.setAttribute('data-auth-action', 'logout');
+          headerBtn.setAttribute('href', '#');
+        } else {
+          headerBtn.textContent = 'Connexion';
+          headerBtn.setAttribute('aria-label', 'Connexion');
+          headerBtn.removeAttribute('data-auth-action');
+          headerBtn.setAttribute('href', 'auth.html');
+        }
+      };
+
+      syncHeader();
+
+      headerBtn.addEventListener('click', (e) => {
+        const action = headerBtn.getAttribute('data-auth-action');
+        if (action !== 'logout') return;
+        e.preventDefault();
+
+        try {
+          localStorage.removeItem(AUTH_STATE_KEY);
+        } catch {
+          // ignore
+        }
+        headerBtn.textContent = 'Connexion';
+        headerBtn.setAttribute('aria-label', 'Connexion');
+        headerBtn.removeAttribute('data-auth-action');
+        headerBtn.setAttribute('href', 'auth.html');
+        window.location.href = 'index.html';
       });
     }
-  };
 
-  // ==========================
-  // Accueil
-  // ==========================
+    const loginTab = document.querySelector('#authLoginTab');
+    const registerTab = document.querySelector('#authRegisterTab');
+    const loginPanel = document.querySelector('#authLoginPanel');
+    const registerPanel = document.querySelector('#authRegisterPanel');
 
-  const initAccueil = () => {
-    // Navigation + espace publicitaire
-    if (!document.querySelector('.home-main') || !document.querySelector('.home-nav__list')) return;
-    initNavigation();
-
-
-  };
-
-  // ==========================
-  // Espace publicitaire (index.html)
-  // ==========================
-
-  // NOTE : Préparé pour migration plus tard depuis une base de données.
-
-  const ADS_STORAGE_KEY = 'smartTaskAds';
-
-  // “DataSource” : wrapper à remplacer quand on aura une DB.
-  const adsDataSource = {
-    loadAds: () => {
-      try {
-        const raw = localStorage.getItem(ADS_STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = safeJSONParse(raw);
-        if (!Array.isArray(parsed)) return [];
-        // Format attendu : [{ id, dataUrl, addedAtISO }]
-        return parsed
-          .map((x) => {
-            if (!x || typeof x !== 'object') return null;
-            const id = String(x.id || '').trim();
-            const dataUrl = String(x.dataUrl || '').trim();
-            const addedAtISO = x.addedAtISO ? String(x.addedAtISO) : new Date().toISOString();
-            if (!id || !dataUrl) return null;
-            // On limite au minimum : les pubs doivent être des images
-            if (!/^data:image\//.test(dataUrl)) return null;
-            return { id, dataUrl, addedAtISO };
-          })
-          .filter(Boolean);
-      } catch {
-        return [];
+    const setTab = (mode) => {
+      if (!loginTab || !registerTab || !loginPanel || !registerPanel) return;
+      const showLogin = mode === 'login';
+      loginTab.setAttribute('aria-selected', showLogin ? 'true' : 'false');
+      registerTab.setAttribute('aria-selected', showLogin ? 'false' : 'true');
+      if (showLogin) {
+        loginPanel.removeAttribute('aria-hidden');
+        registerPanel.setAttribute('aria-hidden', 'true');
+      } else {
+        registerPanel.removeAttribute('aria-hidden');
+        loginPanel.setAttribute('aria-hidden', 'true');
       }
-    },
+    };
 
-    saveAds: (ads) => {
-      // Ads doivent déjà être au bon format.
-      try {
-        localStorage.setItem(ADS_STORAGE_KEY, JSON.stringify(Array.isArray(ads) ? ads : []));
-      } catch {
-        // ignore
-      }
+    if (loginTab && registerTab) {
+      setTab('login');
+      registerTab.addEventListener('click', () => setTab('register'));
+      loginTab.addEventListener('click', () => setTab('login'));
     }
-  };
 
-  // Mode admin
-  // Pour cet exercice : la publicité admin est totalement désactivée par défaut.
-  // (Ne pas casser le reste du code de l’application.)
-  const isAdmin = false;
+    const modal = document.querySelector('#authTermsModal');
+    const overlay = document.querySelector('[data-auth-modal-overlay]');
+    const closeBtns = Array.from(document.querySelectorAll('[data-auth-modal-close]'));
+    const openLink = document.querySelector('#authTermsLink');
 
+    const openModal = () => {
+      if (!modal) return;
+      modal.setAttribute('aria-hidden', 'false');
+      modal.classList.add('auth-modal--open');
+      if (overlay) overlay.classList.add('auth-modal__overlay--open');
+      const closeBtn = closeBtns[0];
+      if (closeBtn && typeof closeBtn.focus === 'function') closeBtn.focus();
+    };
 
-  // Tentative de lecture “admin” depuis des entrées éventuelles sur auth.html.
-  // Le projet ne possède pas encore de champ “admin” dans l’UI : on laisse une possibilité future.
-  // Cette fonction est conservée pour ne pas casser le code existant,
-  // mais elle n’aura aucun effet tant que isAdmin = false.
-  const tryMarkAdminFromAuthFields = () => {
-    const page = getCurrentPage();
-    if (page !== 'auth.html') return;
+    const closeModal = () => {
+      if (!modal) return;
+      modal.setAttribute('aria-hidden', 'true');
+      modal.classList.remove('auth-modal--open');
+      if (overlay) overlay.classList.remove('auth-modal__overlay--open');
+    };
 
-    const emailField = document.querySelector('#authEmail');
-    const passwordField = document.querySelector('#authPassword');
-    if (!emailField || !passwordField) return;
+    if (openLink) openLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      openModal();
+    });
+    if (overlay) overlay.addEventListener('click', closeModal);
+    closeBtns.forEach((b) => b.addEventListener('click', closeModal));
 
-    const email = String(emailField.value || '').trim();
-    const password = String(passwordField.value || '');
+    const loginForm = document.querySelector('#authLoginForm');
+    const registerForm = document.querySelector('#authRegisterForm');
 
-    // Ne jamais afficher les identifiants admin dans l’interface.
-    if (
-      email.toLowerCase() === ADMIN_EMAIL.toLowerCase() &&
-      password === ADMIN_PASSWORD
-    ) {
+    const markLoggedIn = () => {
       try {
-        localStorage.setItem(
-          ADMIN_STATE_KEY,
-          JSON.stringify({ email: email, isAdmin: true, markedAtISO: new Date().toISOString() })
-        );
+        localStorage.setItem(AUTH_STATE_KEY, 'true');
       } catch {
         // ignore
       }
+    };
+
+    const bindSimSubmit = (form) => {
+      if (!form) return;
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        markLoggedIn();
+        window.location.href = 'index.html';
+      });
+    };
+
+    bindSimSubmit(loginForm);
+    bindSimSubmit(registerForm);
+
+    if (getCurrentPage() === 'auth.html') {
+      const isLoggedIn = (() => {
+        try {
+          return localStorage.getItem(AUTH_STATE_KEY) === 'true';
+        } catch {
+          return false;
+        }
+      })();
+      if (isLoggedIn) window.location.href = 'index.html';
     }
-  };
-
-  const clearAdminStateOnLogout = () => {
-    try {
-      localStorage.removeItem(ADMIN_STATE_KEY);
-    } catch {
-      // ignore
-    }
-  };
-
-
-
+  }
 
   // ==========================
   // Tâches
   // ==========================
-
-  const initTaches = () => {
-    const form = document.querySelector('#taskForm');
+  function initTaches() {
+    const taskForm = document.querySelector('#taskForm');
     const taskList = document.querySelector('#taskList');
-    const titleEl = document.querySelector('#taskInput');
-    const priorityEl = document.querySelector('#priorityInput');
-    const dueDateEl = document.querySelector('#dateInput');
-    const addBtn = document.querySelector('#addTaskBtn');
+    const taskInput = document.querySelector('#taskInput');
+    const priorityInput = document.querySelector('#priorityInput');
+    const dateInput = document.querySelector('#dateInput');
+    const categoryInput = document.querySelector('#categoryInput');
 
-    if (!form || !taskList || !titleEl || !priorityEl || !dueDateEl || !addBtn) return;
+    const taskCount = document.querySelector('#taskCount');
+    const emptyState = document.querySelector('#emptyState');
+    const taskErrorBox = document.querySelector('#taskErrorBox');
+
+    if (!taskList || !taskInput || !priorityInput || !dateInput) return;
 
     const statTotal = document.querySelector('#statTotal');
     const statTodo = document.querySelector('#statTodo');
     const statDone = document.querySelector('#statDone');
-    const taskCount = document.querySelector('#taskCount');
-    const emptyStateEl = document.querySelector('#emptyState');
-    const clearCompletedBtn = document.querySelector('#clearCompletedBtn');
 
-    const filterBtns = Array.from(document.querySelectorAll('.filter-btn[data-filter]'));
+    const addTaskBtn = document.querySelector('#addTaskBtn');
 
-    // Validation + affichage erreurs
-    const getActiveFilter = () => {
-      if (!filterBtns.length) return 'all';
-      const active = filterBtns.find((b) => b.getAttribute('aria-pressed') === 'true');
-      const filter = active?.dataset?.filter;
-      return filter === 'all' || filter === 'todo' || filter === 'done' ? filter : 'all';
+    const ensureDueDateErrorBox = () => {
+      if (!dateInput) return null;
+      const existing = document.querySelector('#dueDateErrorBox');
+      if (existing) return existing;
+
+      const field = dateInput.closest('.form-field') || dateInput.parentElement;
+      const box = document.createElement('div');
+      box.id = 'dueDateErrorBox';
+      box.className = 'due-date-error-box task-error-box';
+      box.role = 'alert';
+      box.ariaLive = 'assertive';
+      box.style.display = 'none';
+      box.textContent = '';
+
+      if (field && field.appendChild) field.appendChild(box);
+      return box;
     };
 
-    const setActiveFilter = (filter) => {
-      filterBtns.forEach((btn) => {
-        const isActive = btn.dataset.filter === filter;
-        btn.setAttribute('aria-pressed', String(isActive));
-        btn.classList.toggle('is-active', isActive);
-      });
-      render(filter);
-    };
+    const dueDateErrorBox = ensureDueDateErrorBox();
 
-    const priorityRank = { high: 0, medium: 1, low: 2 };
-
-    let tasks = [];
-    try {
-      tasks = loadTasks();
-    } catch {
-      tasks = [];
-    }
-
-    const syncStats = () => {
-      const total = tasks.length;
-      const todo = tasks.filter((t) => t.status === 'todo').length;
-      const done = total - todo;
-
-      if (statTotal) statTotal.textContent = String(total);
-      if (statTodo) statTodo.textContent = String(todo);
-      if (statDone) statDone.textContent = String(done);
-      if (taskCount) taskCount.textContent = String(total);
-    };
-
-    const updateEmptyState = (filtered, activeFilter) => {
-      if (!emptyStateEl) return;
-
-      if (filtered.length > 0) {
-        emptyStateEl.style.display = 'none';
+    const setDueDateError = (msg) => {
+      if (!dueDateErrorBox || !dateInput) return;
+      if (!msg) {
+        dueDateErrorBox.style.display = 'none';
+        dueDateErrorBox.textContent = '';
+        dateInput.removeAttribute('aria-invalid');
         return;
       }
-
-      const msg =
-        activeFilter === 'todo'
-          ? 'Aucune tâche à faire.'
-          : activeFilter === 'done'
-            ? 'Aucune tâche terminée.'
-            : 'Aucune tâche pour le moment.';
-
-      emptyStateEl.textContent = msg;
-      emptyStateEl.style.display = 'block';
+      dueDateErrorBox.style.display = 'block';
+      dueDateErrorBox.textContent = msg;
+      dateInput.setAttribute('aria-invalid', 'true');
     };
 
-    const render = (activeFilter) => {
-      const filter = activeFilter || getActiveFilter();
-      const filtered = filter === 'all' ? tasks : tasks.filter((t) => t.status === filter);
+    const validateDueDate = (opts = { silentIncomplete: true, forceComplete: false }) => {
+      const dueDateISO = String(dateInput.value || '').trim();
+      if (!dueDateISO) {
+        if (!opts.silentIncomplete) setDueDateError('Veuillez choisir une date limite valide.');
+        else setDueDateError('');
+        return { ok: true };
+      }
+      const isComplete = /^\d{4}-\d{2}-\d{2}$/.test(dueDateISO);
+      if (!isComplete) {
+        if (!opts.forceComplete) {
+          setDueDateError('');
+          return { ok: true };
+        }
+        setDueDateError('Veuillez choisir une date limite valide.');
+        return { ok: false };
+      }
+      if (isDueDateBeforeToday(dueDateISO)) {
+        setDueDateError('La date limite ne peut pas être antérieure à la date d\'aujourd\'hui.');
+        return { ok: false };
+      }
+      setDueDateError('');
+      return { ok: true };
+    };
 
-      if (taskList) taskList.innerHTML = '';
+    if (dateInput) dateInput.setAttribute('min', getTodayISODateLocal());
 
-      const sorted = filtered
+    let currentFilter = 'all';
+
+    const setText = (el, text) => {
+      if (el) el.textContent = String(text);
+    };
+
+    const setError = (msg) => {
+      if (!taskErrorBox) return;
+      if (!msg) {
+        taskErrorBox.style.display = 'none';
+        taskErrorBox.textContent = '';
+        return;
+      }
+      taskErrorBox.style.display = 'block';
+      taskErrorBox.textContent = msg;
+    };
+
+    const priorityLabel = (p) => (p === 'high' ? 'Haute' : p === 'medium' ? 'Moyenne' : 'Faible');
+
+    const render = () => {
+      const allTasks = loadTasks();
+      const tasks = allTasks
+        .filter((t) => (currentFilter === 'todo' ? t.status === 'todo' : currentFilter === 'done' ? t.status === 'done' : true))
         .slice()
         .sort((a, b) => {
-          const byDue = String(a.dueDateISO).localeCompare(String(b.dueDateISO));
+          const byDue = String(a.dueDateISO || '').localeCompare(String(b.dueDateISO || ''));
           if (byDue !== 0) return byDue;
-          const ra = priorityRank[a.priority] ?? 9;
-          const rb = priorityRank[b.priority] ?? 9;
-          return ra - rb;
+          const pr = { high: 0, medium: 1, low: 2 };
+          return (pr[a.priority] ?? 9) - (pr[b.priority] ?? 9);
         });
 
+      const total = allTasks.length;
+      const done = allTasks.filter((t) => t.status === 'done').length;
+      const todo = total - done;
+
+      setText(statTotal, total);
+      setText(statTodo, todo);
+      setText(statDone, done);
+      if (taskCount) setText(taskCount, tasks.length);
+      if (emptyState) emptyState.style.display = tasks.length ? 'none' : 'block';
+
+      taskList.innerHTML = '';
+      if (!tasks.length) return;
+
       const frag = document.createDocumentFragment();
-
-      for (const t of sorted) {
+      for (const t of tasks) {
         const li = document.createElement('li');
-        li.className = 'home-dashboard__task';
-        li.setAttribute('role', 'listitem');
+        li.className = 'task-item';
+        li.dataset.taskId = t.id;
 
-        // Structure interne (basée sur les classes existantes)
         const left = document.createElement('div');
-        left.style.display = 'flex';
-        left.style.flexDirection = 'column';
-        left.style.gap = '8px';
-
-        const badgesRow = document.createElement('div');
-        badgesRow.style.display = 'flex';
-        badgesRow.style.gap = '8px';
-        badgesRow.style.flexWrap = 'wrap';
-
-        const statusBadge = document.createElement('span');
-        statusBadge.className = 'task-badge badge';
-        statusBadge.classList.add(t.status === 'done' ? 'badge--done' : 'badge--todo');
-        statusBadge.textContent = statusFR(t.status);
-
-        const priorityBadge = document.createElement('span');
-        priorityBadge.className = 'task-badge badge';
-        if (t.priority === 'high') priorityBadge.classList.add('badge--high');
-        else if (t.priority === 'medium') priorityBadge.classList.add('badge--medium');
-        else priorityBadge.classList.add('badge--todo');
-        priorityBadge.textContent = `Priorité: ${priorityToFR(t.priority)}`;
-
-        badgesRow.appendChild(statusBadge);
-        badgesRow.appendChild(priorityBadge);
+        left.className = 'task-item__left';
 
         const title = document.createElement('div');
-        title.className = 'home-dashboard__task-title';
+        title.className = 'task-item__title';
         title.textContent = t.title;
 
         const meta = document.createElement('div');
-        meta.className = 'home-dashboard__task-meta';
-        meta.textContent = `Échéance: ${t.dueDateISO} (${formatDueDateFR(t.dueDateISO)})`;
-
-        left.appendChild(badgesRow);
-        left.appendChild(title);
-        left.appendChild(meta);
-
-        const right = document.createElement('div');
+        meta.className = 'task-item__meta';
+        meta.textContent = `Priorité: ${priorityLabel(t.priority)} — Date limite: ${formatDueDateFR(t.dueDateISO)}`;
 
         const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '10px';
-        actions.style.alignItems = 'center';
-        actions.style.marginTop = '10px';
-        actions.style.flexWrap = 'wrap';
+        actions.className = 'task-item__actions';
 
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
-        toggleBtn.textContent = t.status === 'done' ? 'Remettre à faire' : 'Marquer terminée';
+        toggleBtn.className = 'task-item__toggle';
+        toggleBtn.textContent = t.status === 'done' ? 'Marquer à faire' : 'Marquer terminée';
+        toggleBtn.setAttribute('aria-label', toggleBtn.textContent);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
+        deleteBtn.className = 'task-item__delete';
         deleteBtn.textContent = 'Supprimer';
-
-        // Styles inline minimaux uniquement pour éviter dépendances CSS absentes
-        [toggleBtn, deleteBtn].forEach((btn) => {
-          btn.style.height = '34px';
-          btn.style.padding = '0 12px';
-          btn.style.borderRadius = '12px';
-          btn.style.fontWeight = '900';
-          btn.style.border = '1px solid rgba(255,255,255,.12)';
-          btn.style.background = 'rgba(255,255,255,.03)';
-        });
-
-        toggleBtn.style.color = 'rgba(234,240,255,.95)';
-        deleteBtn.style.color = 'rgba(255, 200, 200, 0.95)';
+        deleteBtn.setAttribute('aria-label', 'Supprimer la tâche');
 
         toggleBtn.addEventListener('click', () => {
-          tasks = tasks.map((x) =>
-            x.id === t.id ? { ...x, status: x.status === 'done' ? 'todo' : 'done' } : x
-          );
-          try {
-            saveTasks(tasks);
-          } catch {
-            // ignore
-          }
-          render(getActiveFilter());
+          const tasksAll = loadTasks();
+          const next = tasksAll.map((x) => (x.id !== t.id ? x : { ...x, status: x.status === 'done' ? 'todo' : 'done' }));
+          saveTasks(next);
+          render();
         });
 
         deleteBtn.addEventListener('click', () => {
-          const ok = window.confirm('Supprimer cette tâche ?');
-          if (!ok) return;
-          tasks = tasks.filter((x) => x.id !== t.id);
-          try {
-            saveTasks(tasks);
-          } catch {
-            // ignore
-          }
-          render(getActiveFilter());
+          const tasksAll = loadTasks();
+          const next = tasksAll.filter((x) => x.id !== t.id);
+          saveTasks(next);
+          render();
         });
 
+        left.appendChild(title);
+        left.appendChild(meta);
         actions.appendChild(toggleBtn);
         actions.appendChild(deleteBtn);
-        right.appendChild(actions);
-
         li.appendChild(left);
-        li.appendChild(right);
+        li.appendChild(actions);
 
         frag.appendChild(li);
       }
 
       taskList.appendChild(frag);
-
-      syncStats();
-      updateEmptyState(sorted, filter);
     };
 
-    const clearErrors = () => {
-      // On retire les erreurs propres au champ s'il existe
-      const allErrors = form.querySelectorAll('[data-error-for]');
-      allErrors.forEach((n) => n.remove());
-      titleEl.removeAttribute('aria-invalid');
-      priorityEl.removeAttribute('aria-invalid');
-      dueDateEl.removeAttribute('aria-invalid');
-    };
-
-    const showFieldError = (field, message) => {
-      const formField = field.closest('.form-field') || field.parentElement;
-      if (!formField) return;
-
-      formField.querySelectorAll('[data-error-for]').forEach((n) => n.remove());
-
-      const err = document.createElement('div');
-      err.setAttribute('data-error-for', field.id);
-      err.setAttribute('role', 'alert');
-      err.textContent = message;
-      err.style.marginTop = '6px';
-      err.style.color = 'rgba(255, 190, 190, 0.98)';
-      err.style.fontWeight = '800';
-      err.style.fontSize = '12.5px';
-
-      formField.appendChild(err);
-      field.setAttribute('aria-invalid', 'true');
-    };
-
-    const validate = () => {
-      const title = String(titleEl.value || '').trim();
-      const priority = priorityEl.value;
-      const dueDateISO = String(dueDateEl.value || '');
-
-      if (!title) return { ok: false, message: 'Le titre est obligatoire.', field: titleEl };
-      if (title.length < 3)
-        return {
-          ok: false,
-          message: 'Le titre doit contenir au moins 3 caractères.',
-          field: titleEl
-        };
-      if (title.length > 80)
-        return {
-          ok: false,
-          message: 'Le titre ne doit pas dépasser 80 caractères.',
-          field: titleEl
-        };
-
-      if (!['low', 'medium', 'high'].includes(priority))
-        return { ok: false, message: 'La priorité est obligatoire.', field: priorityEl };
-
-      if (!dueDateISO)
-        return { ok: false, message: 'La date limite est obligatoire.', field: dueDateEl };
-
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDateISO))
-        return { ok: false, message: 'Date invalide.', field: dueDateEl };
-
-      const todayISO = getTodayISODateLocal();
-      const dueObj = isoDateToUTCDate(dueDateISO);
-      const todayObj = isoDateToUTCDate(todayISO);
-
-      if (!dueObj || !todayObj) return { ok: false, message: 'Date invalide.', field: dueDateEl };
-      if (dueObj.getTime() < todayObj.getTime())
-        return {
-          ok: false,
-          message: 'La date limite ne peut pas être inférieure à la date actuelle.',
-          field: dueDateEl
-        };
-
-      return {
-        ok: true,
-        value: { title, priority, dueDateISO }
-      };
-    };
-
-    // Init date minimale
-    const todayISO = getTodayISODateLocal();
-    dueDateEl.min = todayISO;
-
-    // Filtres
-    filterBtns.forEach((btn) => {
-      if (!btn.hasAttribute('aria-pressed')) btn.setAttribute('aria-pressed', 'false');
-    });
-
-    const defaultFilterBtn = filterBtns.find((b) => b.dataset.filter === 'all') || filterBtns[0];
-    if (defaultFilterBtn) {
-      defaultFilterBtn.setAttribute('aria-pressed', 'true');
-      defaultFilterBtn.classList.add('is-active');
-    }
-
-    filterBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const filter = btn.dataset.filter || 'all';
-        setActiveFilter(filter);
+    const applyFilterFromButtons = () => {
+      const btns = Array.from(document.querySelectorAll('.filter-btn[data-filter]'));
+      btns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const f = btn.getAttribute('data-filter');
+          if (!f) return;
+          currentFilter = f;
+          render();
+          btns.forEach((b) => b.removeAttribute('aria-pressed'));
+          btn.setAttribute('aria-pressed', 'true');
+        });
       });
-    });
 
-    // Soumission formulaire
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      clearErrors();
+      const allBtn = btns.find((b) => b.getAttribute('data-filter') === 'all');
+      if (allBtn) allBtn.setAttribute('aria-pressed', 'true');
+    };
 
-      const result = validate();
-      if (!result.ok) {
-        showFieldError(result.field, result.message);
-        if (emptyStateEl) {
-          emptyStateEl.textContent = result.message;
-          emptyStateEl.style.display = 'block';
+    if (taskForm) {
+      taskForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        setError('');
+
+        const title = String(taskInput.value || '').trim();
+        const priority = priorityInput.value;
+        const dueDateISO = dateInput.value;
+        const category = categoryInput ? String(categoryInput.value || '').trim() : '';
+
+        dateInput.value = String(dueDateISO || '');
+        const dueValidationBeforeSave = validateDueDate({ silentIncomplete: false, forceComplete: true });
+        if (!dueValidationBeforeSave.ok) return;
+
+        if (!title) {
+          setError('Veuillez saisir un titre de tâche.');
+          return;
         }
-        try {
-          result.field.focus({ preventScroll: false });
-        } catch {
-          // ignore
-        }
-        return;
-      }
-
-      const { title, priority, dueDateISO } = result.value;
-      const newTask = {
-        id: getUID(),
-        title,
-        priority,
-        dueDateISO,
-        status: 'todo',
-        createdAtISO: new Date().toISOString()
-      };
-
-      tasks.push(newTask);
-      try {
-        saveTasks(tasks);
-      } catch {
-        // ignore
-      }
-
-      form.reset();
-      dueDateEl.min = todayISO;
-      render(getActiveFilter());
-    });
-
-    // Effacer terminées
-    if (clearCompletedBtn) {
-      clearCompletedBtn.addEventListener('click', () => {
-        const doneCount = tasks.filter((t) => t.status === 'done').length;
-        if (!doneCount) {
-          if (emptyStateEl) {
-            emptyStateEl.textContent = 'Aucune tâche terminée à effacer.';
-            emptyStateEl.style.display = 'block';
-          }
-          render(getActiveFilter());
+        if (!['low', 'medium', 'high'].includes(priority)) {
+          setError('Veuillez choisir une priorité valide.');
           return;
         }
 
-        const ok = window.confirm(`Effacer ${doneCount} tâche(s) terminée(s) ?`);
-        if (!ok) return;
+        const tasksAll = loadTasks();
+        tasksAll.push({
+          id: getUID(),
+          title,
+          priority,
+          category: category || 'Non classée',
+          dueDateISO,
+          status: 'todo',
+          createdAtISO: new Date().toISOString()
+        });
 
-        tasks = tasks.filter((t) => t.status !== 'done');
-        try {
-          saveTasks(tasks);
-        } catch {
-          // ignore
-        }
-        render(getActiveFilter());
+        saveTasks(tasksAll);
+        taskInput.value = '';
+        setError('');
+        render();
       });
     }
 
-    // Premier rendu
-    render(getActiveFilter());
-  };
+    applyFilterFromButtons();
+    render();
+  }
 
   // ==========================
   // Analyses
   // ==========================
+  function initAnalyses() {
+    const cards = Array.from(document.querySelectorAll('.analyses-kpi__card'));
+    const valuesEls = cards.map((c) => c.querySelector('.analyses-kpi__value')).filter(Boolean);
+    const kpiGrid = document.querySelector('.analyses-kpi__grid');
 
-  const initGraphiquesAnalyses = () => {
-    // Chart.js (optionnel). Si la librairie n’est pas chargée, on sort sans erreur.
-    const ChartCtor = window.Chart;
-    if (!ChartCtor) return;
+    const tbody = document.querySelector('.analyses-history__table tbody');
+    const recText = document.querySelector('.analyses-recommendations__text');
 
-    const canvasStatut = document.getElementById('chartStatut');
     const canvasPriorite = document.getElementById('chartPriorite');
+    const canvasStatut = document.getElementById('chartStatut');
     const canvasTermineesParJour = document.getElementById('chartTermineesParJour');
 
-    if (!canvasStatut && !canvasPriorite && !canvasTermineesParJour) return;
+    if (!kpiGrid && !tbody && !canvasPriorite && !canvasStatut && !canvasTermineesParJour) return;
 
     let tasks = [];
     try {
@@ -900,271 +619,10 @@
 
     const total = tasks.length;
     const done = tasks.filter((t) => t.status === 'done').length;
-    const todo = total - done;
-
-    const dataStatut = {
-      labels: ['Terminées', 'À faire'],
-      values: [done, todo]
-    };
-
-    const countsPriorite = {
-      high: 0,
-      medium: 0,
-      low: 0
-    };
-    for (const t of tasks) {
-      if (t?.priority === 'high') countsPriorite.high += 1;
-      else if (t?.priority === 'medium') countsPriorite.medium += 1;
-      else if (t?.priority === 'low') countsPriorite.low += 1;
-    }
-
-    const dueDateCounts = new Map(); // YYYY-MM-DD => nb terminées
-    for (const t of tasks) {
-      if (t.status !== 'done') continue;
-      const iso = t.dueDateISO;
-      if (!iso) continue;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) continue;
-      dueDateCounts.set(iso, (dueDateCounts.get(iso) || 0) + 1);
-    }
-
-    // On cible “par jour” sur la période observée : les 14 derniers jours (si possible), sinon l’étendue.
-    const todayISO = getTodayISODateLocal();
-    const todayUTC = isoDateToUTCDate(todayISO);
-
-    const labelsLignes = [];
-    const valuesLignes = [];
-
-    const makeLabel = (iso) => {
-      const dt = isoDateToUTCDate(iso);
-      if (!dt) return iso;
-      try {
-        return new Intl.DateTimeFormat('fr-FR', {
-          day: '2-digit',
-          month: '2-digit'
-        }).format(dt);
-      } catch {
-        return iso;
-      }
-    };
-
-    // Générer 14 jours glissants : [today-13 ... today]
-    if (todayUTC) {
-      for (let i = 13; i >= 0; i--) {
-        const d = new Date(todayUTC.getTime() - i * 24 * 60 * 60 * 1000);
-        const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-        labelsLignes.push(makeLabel(iso));
-        valuesLignes.push(dueDateCounts.get(iso) || 0);
-      }
-    } else {
-      // Fallback : tri des clés ISO disponibles
-      const keys = Array.from(dueDateCounts.keys()).sort();
-      for (const iso of keys.slice(-14)) {
-        labelsLignes.push(makeLabel(iso));
-        valuesLignes.push(dueDateCounts.get(iso) || 0);
-      }
-    }
-
-    const palette = {
-      done: 'rgba(75, 192, 192, 0.95)',
-      todo: 'rgba(255, 99, 132, 0.90)',
-      high: 'rgba(255, 159, 64, 0.95)',
-      medium: 'rgba(54, 162, 235, 0.95)',
-      low: 'rgba(153, 102, 255, 0.95)'
-    };
-
-    const ensureDestroy = (canvas) => {
-      if (!canvas) return;
-
-      const inst = canvas.__chartInstance;
-      if (inst && typeof inst.destroy === 'function') {
-        try {
-          inst.destroy();
-        } catch {
-          // ignore
-        }
-      }
-
-      canvas.__chartInstance = null;
-    };
-
-    const formatNombre = (n) => String(Math.round(Number(n) || 0));
-
-    // Doughnut : statut
-    if (canvasStatut) {
-      ensureDestroy(canvasStatut);
-      canvasStatut.__chartInstance = new ChartCtor(canvasStatut, {
-        type: 'doughnut',
-        data: {
-          labels: dataStatut.labels,
-          datasets: [
-            {
-              data: dataStatut.values,
-              backgroundColor: [palette.done, palette.todo],
-              borderWidth: 0
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                color: 'rgba(234,240,255,.95)'
-              }
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const val = ctx.raw ?? 0;
-                  const label = ctx.label || '';
-                  return `${label} : ${formatNombre(val)}`;
-                }
-              }
-            }
-          }
-        }
-      });
-    }
-
-    // Barres : priorités
-    if (canvasPriorite) {
-      ensureDestroy(canvasPriorite);
-      const labels = ['Haute', 'Moyenne', 'Faible'];
-      const values = [countsPriorite.high, countsPriorite.medium, countsPriorite.low];
-      canvasPriorite.__chartInstance = new ChartCtor(canvasPriorite, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Nombre de tâches',
-              data: values,
-              backgroundColor: [palette.high, palette.medium, palette.low],
-              borderWidth: 0
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const val = ctx.raw ?? 0;
-                  return ` ${formatNombre(val)}`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              ticks: { color: 'rgba(234,240,255,.95)' },
-              grid: { display: false }
-            },
-            y: {
-              beginAtZero: true,
-              ticks: { color: 'rgba(234,240,255,.95)' },
-              grid: { color: 'rgba(255,255,255,.08)' }
-            }
-          }
-        }
-      });
-    }
-
-    // Ligne : terminées par jour
-    if (canvasTermineesParJour) {
-      ensureDestroy(canvasTermineesParJour);
-      canvasTermineesParJour.__chartInstance = new ChartCtor(canvasTermineesParJour, {
-        type: 'line',
-        data: {
-          labels: labelsLignes,
-          datasets: [
-            {
-              label: 'Tâches terminées',
-              data: valuesLignes,
-              borderColor: 'rgba(75, 192, 192, 0.95)',
-              backgroundColor: 'rgba(75, 192, 192, 0.15)',
-              tension: 0.35,
-              fill: true,
-              pointRadius: 3,
-              pointHoverRadius: 5
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                color: 'rgba(234,240,255,.95)'
-              }
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const val = ctx.raw ?? 0;
-                  return ` ${formatNombre(val)} tâche(s)`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              ticks: { color: 'rgba(234,240,255,.95)' },
-              grid: { display: false }
-            },
-            y: {
-              beginAtZero: true,
-              ticks: { color: 'rgba(234,240,255,.95)' },
-              grid: { color: 'rgba(255,255,255,.08)' }
-            }
-          }
-        }
-      });
-    }
-  };
-
-  const initAnalyses = () => {
-    // Graphiques (si Chart.js est dispo). Ne perturbe pas les KPI.
-    initGraphiquesAnalyses();
-
-    const kpiGrid = document.querySelector('.analyses-kpi__grid');
-    const recEl = document.querySelector('.analyses-recommendations__text');
-    const tbody = document.querySelector('.analyses-history__table tbody');
-
-    if (!kpiGrid) return;
-
-    const cards = Array.from(document.querySelectorAll('.analyses-kpi__card'));
-    if (!cards.length) return;
-
-    const valueEls = (i) => cards[i]?.querySelector('.analyses-kpi__value') || null;
-    const setKPI = (index, text) => {
-      const el = valueEls(index);
-      if (el) el.textContent = text;
-    };
-
-    let tasks = [];
-    try {
-      tasks = loadTasks();
-    } catch {
-      tasks = [];
-    }
-
-    const total = tasks.length;
-    const done = tasks.filter((t) => t.status === 'done').length;
-    const inProgress = tasks.filter((t) => t.status === 'todo').length;
+    const inProgress = total - done;
     const successRate = total ? (done / total) * 100 : 0;
     const highPriority = tasks.filter((t) => t.priority === 'high').length;
 
-    // Proxy productivité hebdomadaire : nombre de tâches terminées sur 7 jours (selon dueDateISO)
     let weeklyProd = 0;
     const todayISO = getTodayISODateLocal();
     const today = isoDateToUTCDate(todayISO);
@@ -1174,519 +632,727 @@
         if (t.status !== 'done') return false;
         const dt = isoDateToUTCDate(t.dueDateISO);
         if (!dt) return false;
-        return dt.getTime() >= from.getTime() && dt.getTime() <= today.getTime();
+        const ms = dt.getTime();
+        return ms >= from.getTime() && ms <= today.getTime();
       }).length;
     }
 
     const formatPercent = (v) => `${Math.round(clamp(v, 0, 100))}%`;
+    const setKPI = (idx, text) => {
+      const el = valuesEls[idx];
+      if (el) el.textContent = String(text);
+    };
 
-    const setZeroState = () => {
-      // Ordre des KPI : total, done, inProgress, successRate, highPriority, weeklyProd
+    if (total === 0) {
       setKPI(0, '0');
       setKPI(1, '0');
       setKPI(2, '0');
       setKPI(3, '0%');
       setKPI(4, '0');
       setKPI(5, '0');
-
       if (tbody) tbody.innerHTML = '';
-      if (recEl) {
-        recEl.textContent =
-          'Aucune tâche trouvée : ajoutez-en dans l’onglet Tâches pour voir les analyses.';
+      if (recText) recText.textContent = 'Ajoutez des tâches dans l’onglet Tâches pour voir vos analyses.';
+      if (!window.Chart) return;
+    }
+
+    if (total > 0) {
+      setKPI(0, total);
+      setKPI(1, done);
+      setKPI(2, inProgress);
+      setKPI(3, formatPercent(successRate));
+      setKPI(4, highPriority);
+      setKPI(5, weeklyProd);
+
+      if (tbody) {
+        const priorityRank = { high: 0, medium: 1, low: 2 };
+        const rows = tasks
+          .slice()
+          .sort((a, b) => {
+            const byDue = String(b.dueDateISO || '').localeCompare(String(a.dueDateISO || ''));
+            if (byDue !== 0) return byDue;
+            return (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9);
+          })
+          .slice(0, 8)
+          .map((t) => {
+            const action = t.status === 'done' ? 'Marquer comme terminé' : 'Création / planification';
+            const category = t.category ? String(t.category) : 'Non classée';
+            const result = t.status === 'done' ? 'Succès' : 'En cours';
+            return `<tr><td>${String(t.dueDateISO)}</td><td>${action}</td><td>${category}</td><td>${result}</td></tr>`;
+          })
+          .join('');
+
+        tbody.innerHTML = rows;
       }
+
+      if (recText) {
+        if (total === 0) {
+          recText.textContent = 'Aucune tâche n’est encore enregistrée. Commencez par ajouter vos premières tâches dans la page Tâches.';
+        } else if (inProgress === 0) {
+          recText.textContent = 'Bravo, toutes vos tâches sont terminées. Vous pouvez maintenant préparer vos prochaines priorités ou prendre un temps de récupération.';
+        } else {
+          const hasHigh = tasks.some((t) => t.status !== 'done' && t.priority === 'high');
+          const hasMedium = tasks.some((t) => t.status !== 'done' && t.priority === 'medium');
+          if (hasHigh) recText.textContent = 'Commencez par les tâches à priorité haute afin de sécuriser les échéances importantes.';
+          else if (hasMedium) recText.textContent = 'Planifiez vos tâches de priorité moyenne dans un créneau clair pour maintenir une progression régulière.';
+          else recText.textContent = 'Vos tâches restantes sont de priorité faible. Traitez-les après vos actions principales ou regroupez-les dans une session courte.';
+        }
+      }
+    }
+
+    if (!window.Chart) return;
+
+    const ChartCtor = window.Chart;
+    const ensureDestroy = (canvas) => {
+      if (!canvas) return;
+      const inst = canvas.__chartInstance;
+      if (inst && typeof inst.destroy === 'function') {
+        try {
+          inst.destroy();
+        } catch {
+          // ignore
+        }
+      }
+      canvas.__chartInstance = null;
     };
 
-    if (!total) {
-      setZeroState();
-      return;
+    const palette = {
+      done: 'rgba(75, 192, 192, 0.95)',
+      todo: 'rgba(255, 99, 132, 0.90)',
+      high: 'rgba(255, 159, 64, 0.95)',
+      medium: 'rgba(54, 162, 235, 0.95)',
+      low: 'rgba(153, 102, 255, 0.95)'
+    };
+
+    const countsPriorite = { high: 0, medium: 0, low: 0 };
+    for (const t of tasks) {
+      if (t.priority === 'high') countsPriorite.high += 1;
+      else if (t.priority === 'medium') countsPriorite.medium += 1;
+      else if (t.priority === 'low') countsPriorite.low += 1;
     }
 
-    setKPI(0, String(total));
-    setKPI(1, String(done));
-    setKPI(2, String(inProgress));
-    setKPI(3, formatPercent(successRate));
-    setKPI(4, String(highPriority));
-    setKPI(5, String(weeklyProd));
-
-    // Historique (jusqu’à 6 lignes)
-    if (tbody) {
-      const priorityRank = { high: 0, medium: 1, low: 2 };
-      const rows = tasks
-        .slice()
-        .sort((a, b) => {
-          const byDue = String(b.dueDateISO || '').localeCompare(String(a.dueDateISO || ''));
-          if (byDue !== 0) return byDue;
-          const ra = priorityRank[a.priority] ?? 9;
-          const rb = priorityRank[b.priority] ?? 9;
-          return ra - rb;
-        })
-        .slice(0, 6)
-        .map((t) => {
-          const action = t.status === 'done' ? 'Marquer comme terminé' : 'Création / planification';
-          const category =
-            t.priority === 'high' ? 'Priorité' : t.priority === 'medium' ? 'Études' : 'Travail';
-          const result = t.status === 'done' ? 'Succès' : 'En cours';
-
-          return `
-            <tr>
-              <td>${String(t.dueDateISO)}</td>
-              <td>${String(action)}</td>
-              <td>${String(category)}</td>
-              <td>${String(result)}</td>
-            </tr>
-          `;
-        })
-        .join('');
-
-      tbody.innerHTML = rows;
+    if (canvasStatut) {
+      ensureDestroy(canvasStatut);
+      canvasStatut.__chartInstance = new ChartCtor(canvasStatut, {
+        type: 'doughnut',
+        data: {
+          labels: ['Terminées', 'À faire'],
+          datasets: [{
+            data: [done, inProgress],
+            backgroundColor: [palette.done, palette.todo],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: 'rgba(234,240,255,.95)' } }
+          }
+        }
+      });
     }
 
-    // Recommandations
-    if (recEl) {
-      const parts = [];
-
-      if (successRate < 40 && total >= 5) {
-        parts.push('Augmentez le taux de réussite : privilégiez les échéances proches et limitez le multi-contexte.');
-      }
-      if (highPriority > Math.max(2, Math.floor(total / 3))) {
-        parts.push('Trop de priorités hautes : regroupez les tâches critiques en blocs de 25–50 minutes.');
-      }
-      if (weeklyProd === 0) {
-        parts.push('Cette semaine : démarrez au moins 1 tâche “high” dès aujourd’hui.');
-      } else if (weeklyProd >= 3) {
-        parts.push('Bonne cadence : gardez le rythme et bloquez 1 créneau protégé par jour.');
-      }
-
-      if (!parts.length) {
-        parts.push('Continuez : suivez vos échéances et améliorez progressivement vos priorités.');
-      }
-
-      recEl.textContent = parts.join(' ');
+    if (canvasPriorite) {
+      ensureDestroy(canvasPriorite);
+      canvasPriorite.__chartInstance = new ChartCtor(canvasPriorite, {
+        type: 'bar',
+        data: {
+          labels: ['Haute', 'Moyenne', 'Faible'],
+          datasets: [{
+            label: 'Nombre de tâches',
+            data: [countsPriorite.high, countsPriorite.medium, countsPriorite.low],
+            backgroundColor: [palette.high, palette.medium, palette.low],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
     }
-  };
+
+    if (canvasTermineesParJour) {
+      ensureDestroy(canvasTermineesParJour);
+      const dueDateCounts = new Map();
+      for (const t of tasks) {
+        if (t.status !== 'done') continue;
+        const iso = t.dueDateISO;
+        if (!iso) continue;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) continue;
+        dueDateCounts.set(iso, (dueDateCounts.get(iso) || 0) + 1);
+      }
+
+      const labels = [];
+      const values = [];
+      const todayDt = isoDateToUTCDate(getTodayISODateLocal());
+      if (todayDt) {
+        const fmt = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit' });
+        for (let i = 13; i >= 0; i--) {
+          const d = new Date(todayDt.getTime() - i * 24 * 60 * 60 * 1000);
+          const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+          labels.push(fmt.format(d));
+          values.push(dueDateCounts.get(iso) || 0);
+        }
+      }
+
+      canvasTermineesParJour.__chartInstance = new ChartCtor(canvasTermineesParJour, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Tâches terminées',
+            data: values
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+    }
+  }
 
   // ==========================
-  // IA (sans API)
+  // IA (backend Flask + Ollama)
   // ==========================
-
-  const initIA = () => {
+  function initIA() {
     const aiInput = document.querySelector('#aiInput');
-    const analyzeBtn = document.querySelector('.ai-analyse__btn');
+    const aiAnalyzeBtn = document.querySelector('#aiAnalyzeBtn');
 
-    if (!aiInput || !analyzeBtn) return;
+    const aiPriorityResult = document.querySelector('#aiPriorityResult');
+    const aiUrgencyResult = document.querySelector('#aiUrgencyResult');
+    const aiAdviceResult = document.querySelector('#aiAdviceResult');
+    const aiScoreResult = document.querySelector('#aiScoreResult');
+    const aiNoteResult = document.querySelector('#aiNoteResult');
 
-    const cards = Array.from(document.querySelectorAll('.ai-card'));
-    const cardValues = {
-      priorite: cards[0]?.querySelector('.ai-card__value') || null,
-      urgence: cards[1]?.querySelector('.ai-card__value') || null,
-      conseil: cards[2]?.querySelector('.ai-card__value') || null
-    };
+    const aiDailyObjective = document.querySelector('#aiDailyObjective');
+    const aiDailyTopPriority = document.querySelector('#aiDailyTopPriority');
+    const aiDailyNextAction = document.querySelector('#aiDailyNextAction');
+    const aiDailyRisk = document.querySelector('#aiDailyRisk');
 
-    const lines = Array.from(document.querySelectorAll('.ai-line'));
-    const lineValues = {
-      objectif: lines[0]?.querySelector('.ai-line__value') || null,
-      topPriorite: lines[1]?.querySelector('.ai-line__value') || null,
-      prochaineAction: lines[2]?.querySelector('.ai-line__value') || null,
-      risque: lines[3]?.querySelector('.ai-line__value') || null
-    };
+    if (!aiInput || !aiAnalyzeBtn) return;
 
     const setTextSafe = (el, text) => {
-      if (!el) return;
-      el.textContent = text;
+      if (el) el.textContent = String(text);
     };
 
-    const normalizeText = (s) => String(s || '').toLowerCase();
+    const setLoading = () => {
+      setTextSafe(aiPriorityResult, 'Analyse...');
+      setTextSafe(aiUrgencyResult, 'Analyse...');
+      setTextSafe(aiAdviceResult, 'Analyse en cours avec Ollama...');
+      setTextSafe(aiScoreResult, 'Analyse...');
+      setTextSafe(aiNoteResult, 'Analyse en cours avec Ollama...');
 
-    const analyzeTextForPriority = (text) => {
-      const t = normalizeText(text);
-      const has = (kw) => t.includes(kw);
-
-      let score = 0;
-
-      // Mots-clés demandés
-      if (has('urgent')) score += 4;
-      if (has('important')) score += 3;
-      if (has('deadline')) score += 4;
-      if (has('aujourd')) {
-        if (has('aujourd’hui') || has('aujourdhui')) score += 2;
-        score += 1;
-      }
-      if (has('aujourd’hui') || has('aujourdhui')) score += 2;
-      if (has('demain')) score += 2;
-
-      let priority;
-      if (score >= 6) priority = 'high';
-      else if (score >= 3) priority = 'medium';
-      else priority = 'low';
-
-      let urgence;
-      if (has('urgent') || has('deadline') || has('aujourd’hui') || has('aujourdhui')) {
-        urgence = 'Élevée (à traiter en premier)';
-      } else if (has('demain')) {
-        urgence = 'Moyenne (d’ici demain)';
-      } else {
-        urgence = 'Faible (planifier sereinement)';
-      }
-
-      return { priority, urgence };
+      if (aiDailyObjective) setTextSafe(aiDailyObjective, 'Analyse en cours avec Ollama...');
+      if (aiDailyTopPriority) setTextSafe(aiDailyTopPriority, '—');
+      if (aiDailyNextAction) setTextSafe(aiDailyNextAction, '—');
+      if (aiDailyRisk) setTextSafe(aiDailyRisk, '—');
     };
 
-    const priorityToFR = (p) => (p === 'high' ? 'Haute' : p === 'medium' ? 'Moyenne' : 'Faible');
+    const setErrorIA = () => {
+      setTextSafe(aiPriorityResult, 'Le backend IA ou Ollama n’est pas lancé.');
+      setTextSafe(aiUrgencyResult, '—');
+      setTextSafe(aiAdviceResult, 'Le backend IA ou Ollama n’est pas lancé.');
+      setTextSafe(aiScoreResult, '—');
+      setTextSafe(aiNoteResult, 'Le backend IA ou Ollama n’est pas lancé.');
 
-    const buildRecommendation = (analysis, inputText) => {
-      const trimmed = String(inputText || '').trim();
-      if (!trimmed) {
-        return {
-          priorite: '—',
-          urgence: '—',
-          conseil: 'Collez une liste de tâches pour obtenir une recommandation.'
-        };
-      }
-
-      const base = `Ordre recommandé : 1) ${priorityToFR(analysis.priority)} d’abord, 2) puis le reste.`;
-
-      const conseil =
-        analysis.priority === 'high'
-          ? 'Commence par la tâche la plus critique, puis limite les interruptions pendant 25 minutes.'
-          : analysis.priority === 'medium'
-            ? 'Traite d’abord ce qui a une échéance proche, et découpe en prochaines actions simples.'
-            : 'Planifie à l’avance : prépare le contexte, puis exécute quand l’effort devient facile.';
-
-      return {
-        priorite: `Priorité suggérée : ${priorityToFR(analysis.priority)}`,
-        urgence: `Urgence : ${analysis.urgence}`,
-        conseil: `${base} ${conseil}`
-      };
+      if (aiDailyObjective) setTextSafe(aiDailyObjective, 'Le backend IA ou Ollama n’est pas lancé.');
+      if (aiDailyTopPriority) setTextSafe(aiDailyTopPriority, '—');
+      if (aiDailyNextAction) setTextSafe(aiDailyNextAction, '—');
+      if (aiDailyRisk) setTextSafe(aiDailyRisk, '—');
     };
 
-    // Valeurs par défaut
-    setTextSafe(cardValues.priorite, '—');
-    setTextSafe(cardValues.urgence, '—');
-    setTextSafe(cardValues.conseil, '— (obtenu après analyse)');
+    // Valeurs initiales
+    setTextSafe(aiPriorityResult, '—');
+    setTextSafe(aiUrgencyResult, '—');
+    setTextSafe(aiAdviceResult, '—');
+    setTextSafe(aiScoreResult, '—');
+    setTextSafe(aiNoteResult, '—');
 
-    setTextSafe(lineValues.objectif, '—');
-    setTextSafe(lineValues.topPriorite, '—');
-    setTextSafe(lineValues.prochaineAction, '—');
-    setTextSafe(lineValues.risque, '—');
+    if (aiDailyObjective) setTextSafe(aiDailyObjective, '—');
+    if (aiDailyTopPriority) setTextSafe(aiDailyTopPriority, '—');
+    if (aiDailyNextAction) setTextSafe(aiDailyNextAction, '—');
+    if (aiDailyRisk) setTextSafe(aiDailyRisk, '—');
 
-    analyzeBtn.addEventListener('click', () => {
-      const inputText = aiInput.value || '';
-      const analysis = analyzeTextForPriority(inputText);
-      const rec = buildRecommendation(analysis, inputText);
+    const apiUrl = 'http://127.0.0.1:5000/api/ai/analyze';
 
-      setTextSafe(cardValues.priorite, rec.priorite);
-      setTextSafe(cardValues.urgence, rec.urgence);
-      setTextSafe(cardValues.conseil, rec.conseil);
+    aiAnalyzeBtn.addEventListener('click', async () => {
+      const inputText = String(aiInput.value || '');
 
-      // Résumé du jour (simple)
-      if (analysis.priority === 'high') {
-        setTextSafe(lineValues.objectif, 'Réussir la tâche clé avant la fin de journée.');
-      } else {
-        setTextSafe(lineValues.objectif, 'Avancer avec une action concrète d’ici demain.');
+      if (!inputText.trim()) {
+        setTextSafe(aiPriorityResult, 'Veuillez écrire une tâche à analyser.');
+        setTextSafe(aiUrgencyResult, '—');
+        setTextSafe(aiAdviceResult, '—');
+        setTextSafe(aiScoreResult, '—');
+        setTextSafe(aiNoteResult, '—');
+        if (aiDailyObjective) setTextSafe(aiDailyObjective, '—');
+        if (aiDailyTopPriority) setTextSafe(aiDailyTopPriority, '—');
+        if (aiDailyNextAction) setTextSafe(aiDailyNextAction, '—');
+        if (aiDailyRisk) setTextSafe(aiDailyRisk, '—');
+        return;
       }
 
-      setTextSafe(lineValues.topPriorite, `Top priorité : ${priorityToFR(analysis.priority)}`);
-      setTextSafe(
-        lineValues.prochaineAction,
-        'Prochaine action : découper et démarrer par la plus petite étape possible.'
-      );
-      setTextSafe(
-        lineValues.risque,
-        'Risque : laisser les tâches “urgentes” manger tout le temps sans cadence.'
-      );
+      setLoading();
+
+      try {
+        const resp = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: inputText })
+        });
+
+        if (!resp.ok) {
+          setErrorIA();
+          return;
+        }
+
+        const data = await resp.json();
+
+        const priority = data && data.priority ? String(data.priority) : '—';
+        const urgency = data && data.urgency ? String(data.urgency) : '—';
+        const advice = data && data.advice ? String(data.advice) : '—';
+        const next_action = data && data.next_action ? String(data.next_action) : '—';
+        const risk = data && data.risk ? String(data.risk) : '—';
+        const daily_summary = data && data.daily_summary ? String(data.daily_summary) : '—';
+        const ai_score = data && data.ai_score ? String(data.ai_score) : '—';
+        const ai_note = data && data.ai_note ? String(data.ai_note) : '—';
+
+        setTextSafe(aiPriorityResult, priority);
+        setTextSafe(aiUrgencyResult, urgency);
+        setTextSafe(aiAdviceResult, advice);
+        setTextSafe(aiScoreResult, ai_score);
+        setTextSafe(aiNoteResult, ai_note);
+
+        if (aiDailyObjective) setTextSafe(aiDailyObjective, daily_summary);
+        if (aiDailyTopPriority) setTextSafe(aiDailyTopPriority, priority);
+        if (aiDailyNextAction) setTextSafe(aiDailyNextAction, next_action);
+        if (aiDailyRisk) setTextSafe(aiDailyRisk, risk);
+      } catch {
+        setErrorIA();
+      }
     });
-  };
+  }
 
   // ==========================
-  // Focus (minuteur)
+  // Focus (mode concentration)
   // ==========================
+  function initFocus() {
+    const focusMain = document.querySelector('.focus-main');
+    if (!focusMain) return;
 
-  const initFocus = () => {
-    if (!document.querySelector('.focus-main')) return;
+    // IDs demandés
+    const taskListEl = document.querySelector('#focusTaskList');
+    const currentTaskEl = document.querySelector('#focusCurrentTask');
+    const timerEl = document.getElementById("focusTimer");
+    if (!timerEl) console.error("focusTimer introuvable");
+    const startBtn = document.querySelector('#focusStartBtn');
+    const pauseBtn = document.querySelector('#focusPauseBtn');
+    const resetBtn = document.querySelector('#focusResetBtn');
+    const finishBtn = document.querySelector('#focusFinishBtn');
+    const todayTimeEl = document.querySelector('#focusTodayTime');
+    const sessionsCountEl = document.querySelector('#focusSessionsCount');
+    const completedCountEl = document.querySelector('#focusCompletedCount');
+    const messageEl = document.querySelector('#focusMessage');
 
-    // Minuteur 25:00
-    const SECONDES_PAR_SESSION = 25 * 60;
+    // Infos optionnelles (ajoutées pour l’UI sans toucher au CSS)
+    const currentPriorityEl = document.querySelector('#focusCurrentPriority');
+    const currentDueEl = document.querySelector('#focusCurrentDue');
 
-    const timeRemainingEl = document.querySelector('[aria-label="Temps restant"]');
+    const STORAGE_STATS_KEY = 'focusStats';
 
-    // Boutons potentiels (tolérant : selon le HTML, ils peuvent exister ou non)
-    const startBtn =
-      document.querySelector('[data-focus-start]') ||
-      document.querySelector('#focusStart') ||
-      document.querySelector('.focus-start');
+    const focusDurationInput = document.querySelector('#focusDurationInput');
+    const durationInfoEl = document.querySelector('span[aria-label="Durée de session"]');
+    const DEFAULT_DURATION_MIN = 25;
 
-    const pauseBtn =
-      document.querySelector('[data-focus-pause]') ||
-      document.querySelector('#focusPause') ||
-      document.querySelector('.focus-pause');
+    const clampDurationMinutes = (min) => {
+      const n = Number(min);
+      if (!Number.isFinite(n)) return DEFAULT_DURATION_MIN;
+      return clamp(n, 1, 180);
+    };
 
-    const resetBtn =
-      document.querySelector('[data-focus-reset]') ||
-      document.querySelector('#focusReset') ||
-      document.querySelector('.focus-reset');
+    const getSessionDurationSeconds = () => {
+      const minutes = focusDurationInput ? clampDurationMinutes(focusDurationInput.value) : DEFAULT_DURATION_MIN;
+      return Math.round(minutes * 60);
+    };
 
-    // Tâche active (affichage optionnel)
-    const figureTextEl = document.querySelector('[aria-label*="Carte"], [role="img"]');
+    const renderDurationLabel = () => {
+      if (!durationInfoEl) return;
+      const minutes = focusDurationInput ? clampDurationMinutes(focusDurationInput.value) : DEFAULT_DURATION_MIN;
+      durationInfoEl.textContent = `${minutes} min`;
+    };
 
-    const formatMMSS = (s) => {
+    renderDurationLabel();
+
+    const formatMMSS = (totalSeconds) => {
+      const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
       const mm = String(Math.floor(s / 60)).padStart(2, '0');
       const ss = String(s % 60).padStart(2, '0');
       return `${mm}:${ss}`;
     };
+    const formatTime = formatMMSS;
 
-    const getActiveTaskText = () => {
+    const safeSetText = (el, text) => {
+      if (!el) return;
+      el.textContent = String(text ?? '');
+    };
+
+    const safeSetHTML = (el, html) => {
+      if (!el) return;
+      el.innerHTML = String(html ?? '');
+    };
+
+    const safeParseStats = () => {
       try {
-        const tasks = loadTasks();
-        if (!tasks.length) return '—';
-        const pr = { high: 0, medium: 1, low: 2 };
-        const sorted = tasks.slice().sort((a, b) => {
-          const byPr = (pr[a.priority] ?? 9) - (pr[b.priority] ?? 9);
-          if (byPr !== 0) return byPr;
-          return String(a.dueDateISO).localeCompare(String(b.dueDateISO));
-        });
-        return sorted[0]?.title ? String(sorted[0].title) : '—';
+        const raw = localStorage.getItem(STORAGE_STATS_KEY);
+        if (!raw) return { version: 1, sessions: 0, completedTasks: 0, timeByDate: {} };
+        const parsed = safeJSONParse(raw);
+        if (!parsed || typeof parsed !== 'object') return { version: 1, sessions: 0, completedTasks: 0, timeByDate: {} };
+        const timeByDate = parsed.timeByDate && typeof parsed.timeByDate === 'object' ? parsed.timeByDate : {};
+        return {
+          version: 1,
+          sessions: Number(parsed.sessions) || 0,
+          completedTasks: Number(parsed.completedTasks) || 0,
+          timeByDate
+        };
       } catch {
-        return '—';
+        return { version: 1, sessions: 0, completedTasks: 0, timeByDate: {} };
       }
     };
 
-    let remaining = SECONDES_PAR_SESSION;
+    const saveStats = (stats) => {
+      try {
+        localStorage.setItem(STORAGE_STATS_KEY, JSON.stringify(stats));
+      } catch {
+        // ignore
+      }
+    };
+
+    const getNonDoneTasks = () => {
+      const all = loadTasks();
+      return all.filter((t) => t && t.status !== 'done');
+    };
+
+    const renderStats = (stats) => {
+      if (!stats) stats = safeParseStats();
+      if (todayTimeEl) {
+        const todayISO = getTodayISODateLocal();
+        const seconds = Number(stats.timeByDate?.[todayISO] || 0);
+        todayTimeEl.textContent = formatMMSS(seconds);
+      }
+      if (sessionsCountEl) safeSetText(sessionsCountEl, stats.sessions ?? 0);
+      if (completedCountEl) safeSetText(completedCountEl, stats.completedTasks ?? 0);
+    };
+
+    // Session state
+    let sessionDurationSeconds = getSessionDurationSeconds();
+    let remainingSeconds = sessionDurationSeconds;
     let intervalId = null;
+    let isRunning = false;
+    let selectedTaskId = null;
+    let sessionEnded = false;
 
-    const renderRemaining = () => {
-      if (!timeRemainingEl) return;
-      const mmss = formatMMSS(remaining);
-      // Le HTML peut afficher “12 min 00 s” : on garde un format simple et robuste.
-      timeRemainingEl.textContent = mmss;
+    const renderTimer = () => {
+      if (!timerEl) return;
+      timerEl.textContent = formatTime(remainingSeconds);
     };
 
-    const startTimer = () => {
-      if (intervalId) return;
-      intervalId = window.setInterval(() => {
-        remaining -= 1;
-        if (remaining <= 0) {
-          remaining = 0;
-          renderRemaining();
-          if (intervalId) {
-            window.clearInterval(intervalId);
-            intervalId = null;
-          }
-          // Pas d’alert pour ne pas perturber l’UX, seulement un message aria si possible.
-        } else {
-          renderRemaining();
+    const syncDurationFromInput = () => {
+      const minutes = focusDurationInput ? clampDurationMinutes(focusDurationInput.value) : DEFAULT_DURATION_MIN;
+      if (focusDurationInput) focusDurationInput.value = String(minutes);
+      renderDurationLabel();
+      if (!isRunning) {
+        sessionDurationSeconds = minutes * 60;
+        remainingSeconds = sessionDurationSeconds;
+        renderTimer();
+      }
+    };
+
+    const renderTaskCardEmpty = () => {
+      if (currentTaskEl) currentTaskEl.textContent = 'Aucune tâche sélectionnée';
+      if (currentPriorityEl) currentPriorityEl.textContent = '—';
+      if (currentDueEl) currentDueEl.textContent = '—';
+    };
+
+    const renderSelectedTask = (task) => {
+      if (!task) {
+        renderTaskCardEmpty();
+        return;
+      }
+
+      if (currentTaskEl) currentTaskEl.textContent = `« ${task.title} »`;
+      if (currentPriorityEl) {
+        const label = task.priority === 'high' ? 'Haute' : task.priority === 'medium' ? 'Moyenne' : 'Faible';
+        currentPriorityEl.textContent = label;
+      }
+      if (currentDueEl) safeSetText(currentDueEl, formatDueDateFR(task.dueDateISO));
+    };
+
+    const renderTaskList = () => {
+      if (!taskListEl) return;
+
+      const tasks = getNonDoneTasks();
+      safeSetHTML(taskListEl, '');
+
+      if (!tasks.length) {
+        safeSetText(taskListEl, '');
+        if (messageEl) {
+          messageEl.textContent = 'Aucune tâche disponible. Ajoutez d’abord une tâche dans la page Tâches.';
         }
-      }, 1000);
+        renderTaskCardEmpty();
+        selectedTaskId = null;
+        return;
+      }
 
-      renderRemaining();
+      if (messageEl) messageEl.textContent = '';
+
+      const pr = { high: 0, medium: 1, low: 2 };
+      const sorted = tasks
+        .slice()
+        .sort((a, b) => {
+          const byPr = (pr[a.priority] ?? 9) - (pr[b.priority] ?? 9);
+          if (byPr !== 0) return byPr;
+          return String(a.dueDateISO || '').localeCompare(String(b.dueDateISO || ''));
+        });
+
+      const frag = document.createDocumentFragment();
+      for (const t of sorted) {
+        const li = document.createElement('li');
+        li.className = 'focus-task-item';
+        li.dataset.taskId = t.id;
+
+        const titleText = document.createElement('span');
+        titleText.className = 'focus-task-item__title';
+        titleText.textContent = t.title;
+
+        li.appendChild(titleText);
+
+        li.setAttribute('role', 'button');
+        li.tabIndex = 0;
+        li.setAttribute('aria-label', `Sélectionner la tâche : ${t.title}`);
+
+        const onSelect = () => {
+          selectedTaskId = t.id;
+
+          // Met à jour l'état visuel
+          const items = Array.from(taskListEl.querySelectorAll('li.focus-task-item'));
+          items.forEach((x) => x.classList.remove('is-selected'));
+          li.classList.add('is-selected');
+
+          const current = getNonDoneTasks().find((x) => x.id === selectedTaskId);
+          renderSelectedTask(current || t);
+        };
+
+        li.addEventListener('click', onSelect);
+        li.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect();
+          }
+        });
+
+        frag.appendChild(li);
+      }
+      taskListEl.appendChild(frag);
+
+      if (selectedTaskId && sorted.some((x) => x.id === selectedTaskId)) {
+        const selectedTask = sorted.find((x) => x.id === selectedTaskId);
+
+        // Active l'item sélectionné (visuel)
+        const items = Array.from(taskListEl.querySelectorAll('li.focus-task-item'));
+        items.forEach((x) => x.classList.remove('is-selected'));
+        const selectedItem = items.find((x) => x.dataset.taskId === selectedTaskId);
+        if (selectedItem) selectedItem.classList.add('is-selected');
+
+        renderSelectedTask(selectedTask);
+      } else {
+        selectedTaskId = null;
+        renderTaskCardEmpty();
+      }
     };
 
-    const pauseTimer = () => {
-      if (!intervalId) return;
-      window.clearInterval(intervalId);
-      intervalId = null;
-    };
-
-    const resetTimer = () => {
+    const stopInterval = () => {
       if (intervalId) {
         window.clearInterval(intervalId);
         intervalId = null;
       }
-      remaining = SECONDES_PAR_SESSION;
-      renderRemaining();
+      isRunning = false;
     };
 
-    // Affichage initial
-    try {
-      if (figureTextEl) {
-        const taskText = getActiveTaskText();
-        // Ne pas casser l’HTML si le contenu est géré autrement
-        figureTextEl.textContent = taskText;
+    const updateStatsAfterSession = ({ sessionSecondsSpent, completedTask }) => {
+      const stats = safeParseStats();
+      const todayISO = getTodayISODateLocal();
+
+      stats.sessions = Number(stats.sessions) + 1;
+
+      const seconds = Math.max(0, Number(sessionSecondsSpent) || 0);
+      if (!stats.timeByDate || typeof stats.timeByDate !== 'object') stats.timeByDate = {};
+      stats.timeByDate[todayISO] = Number(stats.timeByDate[todayISO] || 0) + seconds;
+
+      if (completedTask) {
+        stats.completedTasks = Number(stats.completedTasks) + 1;
       }
-    } catch {
-      // ignore
-    }
 
-    renderRemaining();
+      saveStats(stats);
+      renderStats(stats);
+    };
 
-    // Brancher boutons uniquement s’ils existent
+    const endSession = (opts = { userInitiated: false }) => {
+      if (sessionEnded) return;
+      sessionEnded = true;
+      stopInterval();
+
+      // Message demandé
+      if (messageEl) messageEl.textContent = 'Session terminée. Bon travail.';
+
+      const tasksNow = getNonDoneTasks().concat(loadTasks().filter((t) => t.status === 'done'));
+      const selectedTask = tasksNow.find((t) => t.id === selectedTaskId) || null;
+
+      const confirmMsg = selectedTask
+        ? `Votre tâche « ${selectedTask.title} » est-elle terminée ?\n\nCliquez sur OK pour la marquer comme terminée, ou Annuler pour la laisser à faire.`
+        : 'Aucune tâche sélectionnée.\n\nVoulez-vous quand même terminer la session ?';
+
+      // Si aucune tâche sélectionnée, on ne force pas le marquage (mais stats session compte quand même)
+      const wantsMarkDone = window.confirm(confirmMsg);
+
+      // Temps de focus réellement passé (temps initial - restant)
+      const secondsSpent = sessionDurationSeconds - remainingSeconds;
+
+      // Marquage terminé si confirmé et tâche sélectionnée
+      let completed = false;
+      if (wantsMarkDone && selectedTaskId) {
+        try {
+          const allTasks = loadTasks();
+          const next = allTasks.map((t) => (t.id === selectedTaskId ? { ...t, status: 'done' } : t));
+          saveTasks(next);
+          completed = true;
+        } catch {
+          completed = false;
+        }
+      }
+
+      updateStatsAfterSession({ sessionSecondsSpent: secondsSpent, completedTask: completed });
+
+      // Rafraîchir tâche & minuter
+      renderTaskList();
+      sessionDurationSeconds = getSessionDurationSeconds();
+      remainingSeconds = sessionDurationSeconds;
+      renderTimer();
+      sessionEnded = false; // autorise de nouvelles sessions
+    };
+
+    // Timer controls
+    const startTimer = () => {
+      if (sessionEnded) sessionEnded = false;
+      if (isRunning) return;
+      if (remainingSeconds <= 0) {
+        sessionDurationSeconds = getSessionDurationSeconds();
+        remainingSeconds = sessionDurationSeconds;
+      }
+
+      // Empêcher démarrage sans tâche disponible
+      const nonDone = getNonDoneTasks();
+      if (!nonDone.length) {
+        if (messageEl) messageEl.textContent = 'Aucune tâche disponible. Ajoutez d’abord une tâche dans la page Tâches.';
+        return;
+      }
+      const selectedTask = selectedTaskId ? nonDone.find((x) => x.id === selectedTaskId) : null;
+      if (!selectedTask) {
+        if (messageEl) messageEl.textContent = 'Veuillez sélectionner une tâche avant de commencer.';
+        return;
+      }
+
+      if (messageEl) messageEl.textContent = '';
+      isRunning = true;
+      intervalId = window.setInterval(() => {
+        if (remainingSeconds <= 0) {
+          stopInterval();
+          endSession({ userInitiated: false });
+          return;
+        }
+        remainingSeconds -= 1;
+        if (remainingSeconds < 0) remainingSeconds = 0;
+        renderTimer();
+
+        if (remainingSeconds === 0) {
+          stopInterval();
+          endSession({ userInitiated: false });
+        }
+      }, 1000);
+    };
+
+    const pauseTimer = () => {
+      stopInterval();
+    };
+
+    const resetTimer = () => {
+      stopInterval();
+      sessionDurationSeconds = getSessionDurationSeconds();
+      remainingSeconds = sessionDurationSeconds;
+      renderTimer();
+      sessionEnded = false;
+      if (messageEl) messageEl.textContent = '';
+    };
+
+    const finishBtnHandler = () => {
+      // Termine immédiatement, même si paused
+      endSession({ userInitiated: true });
+    };
+
+    // Bind UI
+    renderTaskList();
+    renderTimer();
+    renderStats(safeParseStats());
+
     if (startBtn) startBtn.addEventListener('click', startTimer);
     if (pauseBtn) pauseBtn.addEventListener('click', pauseTimer);
     if (resetBtn) resetBtn.addEventListener('click', resetTimer);
-  };
-
-  // ==========================
-  // Bootstrap par page
-  // ==========================
-
-  const bootstrap = () => {
-    // Protection d’accès (simple via localStorage) avant toute initialisation
-    enforceAuthProtection();
-
-    // Bouton d’authentification dans l’en-tête (si présent)
-    initAuthHeader();
-
-    // Sur auth.html : marquer l’utilisateur comme connecté après soumission
-    initAuthSuccessStorage();
-
-
-    // Navigation sur toutes les pages
-    initNavigation();
-
-
-    if (document.querySelector('.home-main') && document.querySelector('.home-nav__list')) {
-      initAccueil();
+    if (finishBtn) finishBtn.addEventListener('click', finishBtnHandler);
+    if (focusDurationInput) {
+      focusDurationInput.addEventListener('input', syncDurationFromInput);
+      focusDurationInput.addEventListener('change', syncDurationFromInput);
     }
 
+    // Défense anti double-tap : empêcher plusieurs listeners de créer plusieurs timers
+    // (la garde isRunning + intervalId évite la création de plusieurs intervals)
+  }
 
-    // Tâches
-    const hasTaskUI =
-      !!document.querySelector('#taskForm') &&
-      !!document.querySelector('#taskList') &&
-      !!document.querySelector('#taskInput') &&
-      !!document.querySelector('#priorityInput') &&
-      !!document.querySelector('#dateInput');
 
-    if (hasTaskUI) initTaches();
+  // ==========================
+  // Protection (simple)
+  // ==========================
+  const isUserLoggedIn = () => {
+    try {
+      return localStorage.getItem(AUTH_STATE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  };
 
-    // Analyses
-    const hasAnalysesUI =
-      !!document.querySelector('.analyses-kpi__grid') &&
-      !!document.querySelector('.analyses-history__table');
+  const enforceAuthProtection = () => {
+    const currentFile = getCurrentPage();
 
-    if (hasAnalysesUI) initAnalyses();
+    const allowedPublicPages = new Set(['index.html', 'auth.html']);
+    const protectedPages = new Set(['tache.html', 'analyses.html', 'IA.html', 'focus.html', 'ai.html']);
 
-    // IA
-    const hasIAUI = !!document.querySelector('#aiInput') && !!document.querySelector('.ai-analyse__btn');
-    if (hasIAUI) initIA();
+    if (allowedPublicPages.has(currentFile)) return;
+    if (!protectedPages.has(currentFile)) return;
 
-    // Auth tabs
-    const hasAuthUI = !!document.querySelector('#authLoginTab') && !!document.querySelector('#authRegisterTab');
-    if (hasAuthUI) initAuthTabs();
-
-    // Modal Conditions d’utilisation (auth only)
-    const hasTermsModal = !!document.querySelector('#authTermsModal') && !!document.querySelector('#authTermsLink');
-    if (hasTermsModal) initAuthTermsModal();
-
-    // Focus
-    const hasFocusUI = !!document.querySelector('.focus-main');
-    if (hasFocusUI) initFocus();
+    if (!isUserLoggedIn()) window.location.href = 'auth.html';
   };
 
   // ==========================
-  // Auth (onglets Connexion / Inscription)
+  // Bootstrap
   // ==========================
-
-  const initAuthTabs = () => {
-    const loginTab = document.querySelector('#authLoginTab');
-    const registerTab = document.querySelector('#authRegisterTab');
-    const loginForm = document.querySelector('#authLoginForm');
-    const registerForm = document.querySelector('#authRegisterForm');
-
-    if (!loginTab || !registerTab || !loginForm || !registerForm) return;
-
-    // On cache par défaut Inscription
-    const setActive = (mode) => {
-      const showLogin = mode === 'login';
-      const showRegister = mode === 'register';
-
-      const loginPanel = loginForm.closest('.auth-panel') || loginForm;
-      const registerPanel = registerForm.closest('.auth-panel') || registerForm;
-
-      // Tabs aria-selected
-      loginTab.setAttribute('aria-selected', showLogin ? 'true' : 'false');
-      registerTab.setAttribute('aria-selected', showRegister ? 'true' : 'false');
-
-      // Classes CSS demandées
-      if (showLogin) {
-        loginPanel.classList.remove('is-hidden');
-        loginPanel.classList.add('is-active');
-
-        registerPanel.classList.add('is-hidden');
-        registerPanel.classList.remove('is-active');
-      } else {
-        registerPanel.classList.remove('is-hidden');
-        registerPanel.classList.add('is-active');
-
-        loginPanel.classList.add('is-hidden');
-        loginPanel.classList.remove('is-active');
-      }
-
-      // Accessibilité : mettre à jour aria-hidden si présent
-      loginPanel.setAttribute('aria-hidden', showLogin ? 'false' : 'true');
-      registerPanel.setAttribute('aria-hidden', showRegister ? 'false' : 'true');
-    };
-
-    // Initialisation : uniquement Connexion par défaut
-    setActive('login');
-
-    // Gestion clics
-    loginTab.addEventListener('click', () => setActive('login'));
-    registerTab.addEventListener('click', () => setActive('register'));
-  };
-
-
-  const initAuthTermsModal = () => {
-    const modal = document.querySelector('#authTermsModal');
-    const linkBtn = document.querySelector('#authTermsLink');
-    const overlay = modal?.querySelector('[data-auth-modal-overlay]') || null;
-    const closeBtn = modal?.querySelector('[data-auth-modal-close]') || null;
-
-    if (!modal || !linkBtn) return;
-
-    const openModal = () => {
-      // Mémoriser le focus pour restauration
-      if (!modal.__previousFocusEl) modal.__previousFocusEl = document.activeElement;
-
-      modal.classList.add('auth-modal--open');
-      modal.setAttribute('aria-hidden', 'false');
-
-      // Mettre le focus sur le bouton Fermer
-      try {
-        closeBtn?.focus?.();
-      } catch {
-        // ignore
-      }
-    };
-
-    const closeModal = () => {
-      modal.classList.remove('auth-modal--open');
-      modal.setAttribute('aria-hidden', 'true');
-
-      // Restaurer le focus
-      const prev = modal.__previousFocusEl;
-      modal.__previousFocusEl = null;
-      try {
-        if (prev && typeof prev.focus === 'function') prev.focus();
-      } catch {
-        // ignore
-      }
-    };
-
-    // Ouvrir via clic sur le lien dans le label
-    linkBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openModal();
-    });
-
-    // Fermer via bouton
-    closeBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      closeModal();
-    });
-
-    // Fermer via overlay
-    overlay?.addEventListener('click', () => {
-      closeModal();
-    });
-
-    // Clavier: Escape
-    document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape') return;
-      const isOpen = modal.classList.contains('auth-modal--open');
-      if (isOpen) closeModal();
-    });
+  const bootstrap = () => {
+    enforceAuthProtection();
+    initNavigation();
+    initAuth();
+    initTaches();
+    initAnalyses();
+    initIA();
+    initFocus();
   };
 
   if (document.readyState === 'loading') {
@@ -1695,5 +1361,3 @@
     bootstrap();
   }
 })();
-
-

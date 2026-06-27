@@ -80,10 +80,12 @@
                 class="ai-analyse__btn"
                 type="button"
                 aria-label="Analyser la liste de tâches"
+              id="aiAnalyzeBtn"
               >
                 Analyser
               </button>
             </div>
+          </div>
         </div>
       </section>
 
@@ -98,24 +100,25 @@
           <div class="ai-result__grid" role="region" aria-label="Synthèse de l’IA">
             <article class="ai-card" aria-label="Priorité suggérée">
               <h3 class="ai-card__title">Priorité suggérée</h3>
-              <p class="ai-card__value" aria-live="polite">—</p>
+              <p id="aiPriorityResult" class="ai-card__value" aria-live="polite">—</p>
               <p class="ai-card__meta">Ordre recommandé pour commencer efficacement.</p>
             </article>
 
             <article class="ai-card" aria-label="Urgence et timing">
               <h3 class="ai-card__title">Urgence</h3>
-              <p class="ai-card__value" aria-live="polite">—</p>
+              <p id="aiUrgencyResult" class="ai-card__value" aria-live="polite">—</p>
               <p class="ai-card__meta">Tâches à traiter en premier selon l’échéance.</p>
             </article>
 
             <article class="ai-card" aria-label="Conseil personnalisé">
               <h3 class="ai-card__title">Conseil IA</h3>
-              <p class="ai-card__value ai-card__value--text" aria-live="polite">
+              <p id="aiAdviceResult" class="ai-card__value ai-card__value--text" aria-live="polite">
                 — (obtenu après analyse)
               </p>
               <p class="ai-card__meta">Une recommandation claire pour mieux organiser la suite.</p>
             </article>
           </div>
+        </div>
       </section>
 
       <section class="home-section ai-daily" aria-labelledby="aiDailyTitle">
@@ -125,23 +128,34 @@
           <div class="ai-daily__list" role="list" aria-label="Résumé quotidien conseillé">
             <div class="ai-line" role="listitem" aria-label="Objectif du jour">
               <span class="ai-line__label">Objectif</span>
-              <span class="ai-line__value" aria-live="polite">—</span>
+              <span id="aiDailyObjective" class="ai-line__value" aria-live="polite">—</span>
             </div>
 
             <div class="ai-line" role="listitem" aria-label="Top priorité">
               <span class="ai-line__label">Top priorité</span>
-              <span class="ai-line__value" aria-live="polite">—</span>
+              <span id="aiDailyTopPriority" class="ai-line__value" aria-live="polite">—</span>
             </div>
 
             <div class="ai-line" role="listitem" aria-label="Prochaine action">
               <span class="ai-line__label">Prochaine action</span>
-              <span class="ai-line__value" aria-live="polite">—</span>
+              <span id="aiDailyNextAction" class="ai-line__value" aria-live="polite">—</span>
             </div>
 
             <div class="ai-line" role="listitem" aria-label="Risque principal à éviter">
               <span class="ai-line__label">Risque</span>
-              <span class="ai-line__value" aria-live="polite">—</span>
+              <span id="aiDailyRisk" class="ai-line__value" aria-live="polite">—</span>
             </div>
+
+            <div class="ai-line" role="listitem" aria-label="Score IA">
+              <span class="ai-line__label">Score IA</span>
+              <span id="aiScoreResult" class="ai-line__value" aria-live="polite">—</span>
+            </div>
+
+            <div class="ai-line" role="listitem" aria-label="Note IA">
+              <span class="ai-line__label">Note IA</span>
+              <span id="aiNoteResult" class="ai-line__value" aria-live="polite">—</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -186,6 +200,7 @@
               </p>
             </article>
           </div>
+        </div>
       </section>
     </main>
 
